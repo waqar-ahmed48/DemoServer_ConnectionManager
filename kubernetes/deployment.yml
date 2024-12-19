@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demoserver-connectionmanager-deployment
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: demoserver_connectionmanager
+        image: demoserver_connectionmanager:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5678
+        env:
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_HOST
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_PORT
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_PORT
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_USERNAME
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_USERNAME
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_PASSWORD
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_CONNECTIONPOOLSIZE
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_CONNECTIONPOOLSIZE
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_CONNECTIONPOOLSIZE
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_CONNECTIONPOOLSIZE
+        - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_SSLMODE
+          valueFrom:
+            secretKeyRef:
+              name: demoserver-connectionmanager-postgres
+              key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_SSLMODE

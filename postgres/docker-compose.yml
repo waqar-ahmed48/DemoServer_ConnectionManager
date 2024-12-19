@@ -1,0 +1,20 @@
+version: '3.1'
+services:
+  db:
+    container_name: postgres
+    image: postgres:15.0
+    command: "postgres -c config_file=./config/postgresql.conf"
+    environment:
+      POSTGRES_USER: ${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_USERNAME}
+      POSTGRES_PASSWORD: ${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD}
+      POSTGRES_DB: "postgres"
+    volumes:
+    - /var/lib/postgresql/pgdata:/var/lib/postgresql/data
+    - ./config:/config/
+    ports:
+    - 5432:5432
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080

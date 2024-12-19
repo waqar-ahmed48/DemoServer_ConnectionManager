@@ -1,0 +1,1 @@
+echo "bye from waqar postgres"
