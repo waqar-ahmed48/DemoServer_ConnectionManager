@@ -1,0 +1,9 @@
+{
+    "name": "jsd.gemalto.com - test",
+    "connectiontype": "jiraconnectiontype",
+    "description": "jira service desk - BPS - test",
+    "url": "https://jsd.gemalto.com/test",
+    "username": "d2FobWVkTEST",
+    "password": "RGVpbmV0OF84TEST",
+    "insecureallowed": 0
+}

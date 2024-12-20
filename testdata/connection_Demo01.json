@@ -1,0 +1,10 @@
+{
+    "name": "Demo01Account_AWS",
+    "description": "Demo01Account AWS Account description",
+    "connectiontype": "",
+    "accesskey": "dummy_access_key",
+    "secretaccesskey": "dummy_secret_access_key",
+    "region": "us-east-1",
+    "default_lease_ttl": 20,
+    "max_lease_ttl": 0
+}
