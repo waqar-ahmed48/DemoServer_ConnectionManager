@@ -5,6 +5,7 @@ import (
 	"DemoServer_ConnectionManager/data"
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/helper"
+	"DemoServer_ConnectionManager/secretsmanager"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -58,16 +59,18 @@ type AWSConnectionHandler struct {
 	l                      *slog.Logger
 	cfg                    *configuration.Config
 	pd                     *datalayer.PostgresDataSource
+	vh                     *secretsmanager.VaultHandler
 	connections_list_limit int
 }
 
-func NewAWSConnectionHandler(cfg *configuration.Config, l *slog.Logger, pd *datalayer.PostgresDataSource) (*AWSConnectionHandler, error) {
+func NewAWSConnectionHandler(cfg *configuration.Config, l *slog.Logger, pd *datalayer.PostgresDataSource, vh *secretsmanager.VaultHandler) (*AWSConnectionHandler, error) {
 	var c AWSConnectionHandler
 
 	c.cfg = cfg
 	c.l = l
 	c.pd = pd
 	c.connections_list_limit = cfg.Server.ListLimit
+	c.vh = vh
 
 	return &c, nil
 }
@@ -536,31 +539,6 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 		connection.Connection.TestSuccessful = 0
 	}
 
-	if p.AccessKey != "" {
-		connection.AccessKey = p.AccessKey
-		connection.Connection.TestSuccessful = 0
-	}
-
-	if p.SecretAccessKey != "" {
-		connection.SecretAccessKey = p.SecretAccessKey
-		connection.Connection.TestSuccessful = 0
-	}
-
-	if p.Region != "" {
-		connection.Region = p.Region
-		connection.Connection.TestSuccessful = 0
-	}
-
-	if p.DefaultLeaseTTL != connection.DefaultLeaseTTL {
-		connection.DefaultLeaseTTL = p.DefaultLeaseTTL
-		connection.Connection.TestSuccessful = 0
-	}
-
-	if p.MaxLeaseTTL != connection.MaxLeaseTTL {
-		connection.MaxLeaseTTL = p.MaxLeaseTTL
-		connection.Connection.TestSuccessful = 0
-	}
-
 	/*
 		updated := false
 
@@ -924,6 +902,21 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 
 	c := r.Context().Value(KeyAWSConnectionRecord{}).(*data.AWSConnection)
 
+	err := h.vh.AddAWSSecretsEngine(c.VaultPath, c.AccessKey, c.SecretAccessKey, c.DefaultLeaseTTL, c.MaxLeaseTTL, c.DefaultRegion, c.RoleName, c.PolicyARNs)
+	if err != nil {
+		helper.LogError(cl, helper.ErrorVaultAWSEngineFailed, err)
+
+		helper.ReturnErrorWithAdditionalInfo(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorVaultAWSEngineFailed,
+			requestid,
+			r,
+			&w,
+			err)
+		return
+	}
+
 	c.Connection.ConnectionType = data.AWSConnectionType
 
 	result := h.pd.RWDB().Create(&c)
@@ -955,7 +948,7 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err := json.NewEncoder(w).Encode(c)
+	err = json.NewEncoder(w).Encode(c)
 
 	if err != nil {
 		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)

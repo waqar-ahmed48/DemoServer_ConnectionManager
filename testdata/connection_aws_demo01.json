@@ -1,0 +1,14 @@
+{
+    "connection": {
+        "name": "Demo01Account_AWS",
+        "description": "Demo01Account AWS Account description",
+        "connectiontype": ""
+    },
+    "accesskey": "AKIAQ4NXP2LYNCK3UIPR",
+    "secretaccesskey": "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",
+    "default_region": "us-east-1",
+    "default_lease_ttl": "20s",
+    "max_lease_ttl": "60s",
+    "role_name": "DemoUser",
+    "policy_arns": "arn:aws:iam::aws:policy/AdministratorAccess"
+}

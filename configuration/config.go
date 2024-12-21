@@ -41,6 +41,16 @@ type Config struct {
 		SSLMode              bool   `yaml:"sslmode" env:"DEMOSERVER_CONNECTIONMANAGER_POSTGRES_SSLMODE"`
 	} `yaml:"postgres"`
 
+	Vault struct {
+		Host          string `yaml:"host" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_HOST"`
+		Port          int    `yaml:"port" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_PORT"`
+		RoleID        string `yaml:"roleid" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_ROLE_ID"`
+		SecretID      string `yaml:"secretid" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_SECRET_ID"`
+		HTTPS         bool   `yaml:"https" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_HTTPS"`
+		TLSSkipVerify bool   `yaml:"tlsskipverify" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_TLSSKIPVERIFY"`
+		PathPrefix    string `yaml:"pathprefix" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_PATH_PREFIX"`
+	} `yaml:"vault"`
+
 	DataLayer struct {
 		NamePrefix string `yaml:"name_prefix" env:"DEMOSERVER_CONNECTIONMANAGER_DATALAYER_NAME_PREFIX"`
 		MaxResults int    `yaml:"max_results" env:"DEMOSERVER_CONNECTIONMANAGER_DATALAYER_MAX_RESULTS"`

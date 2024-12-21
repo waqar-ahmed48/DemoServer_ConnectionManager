@@ -1,0 +1,5 @@
+*.exe
+*.gz
+*redis-data
+.dockerenv
+./testdata/connection_Demo01.json

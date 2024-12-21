@@ -16,6 +16,7 @@ import (
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/handlers"
 	"DemoServer_ConnectionManager/helper"
+	"DemoServer_ConnectionManager/secretsmanager"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/gorilla/mux"
@@ -93,6 +94,12 @@ func main() {
 		os.Exit(2)
 	}
 
+	vh, err := secretsmanager.NewVaultHandler(&cfg, l)
+	if err != nil {
+		l.Error("Vault Handler initialization failed. Error: " + err.Error())
+		os.Exit(2)
+	}
+
 	ch, err := handlers.NewConnectionsHandler(&cfg, l, pd)
 	if err != nil {
 		l.Error("Connections Handler initialization failed. Error: " + err.Error())
@@ -108,7 +115,7 @@ func main() {
 	cGetRouter.HandleFunc("/v1/connectionmgmt/connections", ch.GetConnections)
 	cGetRouter.Use(ch.MiddlewareValidateConnectionsGet)
 
-	jch, err := handlers.NewAWSConnectionHandler(&cfg, l, pd)
+	jch, err := handlers.NewAWSConnectionHandler(&cfg, l, pd, vh)
 	if err != nil {
 		l.Error("AWSConnectionHandler initialization failed. Error: " + err.Error())
 		os.Exit(2)

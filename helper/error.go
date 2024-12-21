@@ -30,6 +30,27 @@ var (
 
 	//ErrAWSConnectionNotInitialized AWSConnection not initialized
 	ErrAWSConnectionNotInitialized = errors.New("AWSConnection not initialized")
+
+	//ErrVaultUnsealedButInStandby vault Instance is in standby mode
+	ErrVaultUnsealedButInStandby = errors.New("vault Instance is in standby mode, it wont serve requests")
+
+	//ErrVaultSealedOrInErrorState vault is sealed or in an error state
+	ErrVaultSealedOrInErrorState = errors.New("vault is sealed or in an error state")
+
+	//ErrVaultNotInitialized Vault is not initialized
+	ErrVaultNotInitialized = errors.New("vault is not initialized")
+
+	//ErrVaultPingUnexpectedResponseCode Vault returned unexpected response code for health check
+	ErrVaultPingUnexpectedResponseCode = errors.New("vault returned unexpected response code for health check")
+
+	//ErrVaultAuthenticationFailed approle authentication with Vault failed.
+	ErrVaultAuthenticationFailed = errors.New("approle authentication with Vault failed")
+
+	//ErrVaultFailToEnableAWSSecretsEngine failed to enable Vault's AWS secrets engine
+	ErrVaultFailToEnableAWSSecretsEngine = errors.New("failed to enable Vault's AWS secrets engine")
+
+	//ErrVaultFailToConfigureAWSSecretsEngine failed to enable Vault's AWS secrets engine
+	ErrVaultFailToConfigureAWSSecretsEngine = errors.New("failed to configure Vault's AWS secrets engine")
 )
 
 // ErrorTypeEnum is the type enum log dictionary for microservice.
@@ -131,6 +152,18 @@ const (
 
 	//DebugDatastoreConnectionUP represents debug message for datastore connection up.
 	DebugDatastoreConnectionUP
+
+	//ErrorVaultNotAvailable represents error message for Vault not available.
+	ErrorVaultNotAvailable
+
+	//ErrorVaultAuthenticationFailed represents error message for client failed to authenticate with Vault.
+	ErrorVaultAuthenticationFailed
+
+	//ErrorVaultTLSConfigurationFailed represents error message for client failed to configure TLS for connection.
+	ErrorVaultTLSConfigurationFailed
+
+	//ErrorVaultAWSEngineFailed represents error message for request to Vault to enable new AWS Engine failed.
+	ErrorVaultAWSEngineFailed
 )
 
 // Error represent the details of error occurred.
@@ -176,6 +209,9 @@ var ErrorDictionary = map[ErrorTypeEnum]Error{
 	ErrorAWSConnectionPatchInvalidValueForConnectionType:  {"ConnectionManager_Err_000026", "Invalid value for connectiontype. string expected", ""},
 	ErrorDatastoreConnectionCloseFailed:                   {"ConnectionManager_Err_000027", "Failed to close datastore connection", ""},
 	ErrorDatastoreFailedToCreateDB:                        {"ConnectionManager_Err_000028", "Failed to create database in datastore", ""},
+	ErrorVaultNotAvailable:                                {"ConnectionManager_Err_000029", "Vault connection down", ""},
+	ErrorVaultAuthenticationFailed:                        {"ConnectionManager_Err_000030", "Vault authentication failed", ""},
+	ErrorVaultTLSConfigurationFailed:                      {"ConnectionManager_Err_000031", "Vault TLS Configuration failed", ""},
 }
 
 // ErrorResponse represents information returned by Microservice endpoints in case that was an error

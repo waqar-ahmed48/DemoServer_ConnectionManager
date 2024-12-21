@@ -22,6 +22,14 @@ postgres:
   roconnectionpoolsize: 425
   rwconnectionpoolsize: 425
   sslmode: false
+vault:
+  host: 127.0.0.1
+  port: -1
+  roleid: foo
+  secretid: bar
+  https: true
+  tlsskipverify: false
+  pathprefix: demoserver
 datalayer:
   name_prefix: DemoServer_ConnectionManager
   max_results: 10000

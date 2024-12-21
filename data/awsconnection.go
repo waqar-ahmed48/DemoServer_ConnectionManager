@@ -67,31 +67,43 @@ type AWSConnectionPatchWrapper struct {
 // AWSConnection represents AWSConnection resource returned by Microservice endpoints
 // swagger:model
 type AWSConnection struct {
-	ID           uuid.UUID `json:"id" gorm:"primaryKey"`
-	CreatedAt    time.Time `json:"createdat" gorm:"autoCreateTime;index;not null"`
-	UpdatedAt    time.Time `json:"updatedat" gorm:"autoUpdateTime;index"`
-	ConnectionID uuid.UUID `json:"Connectionid"`
-	Connection   Connection
+	ID           uuid.UUID  `json:"id" gorm:"primaryKey"`
+	CreatedAt    time.Time  `json:"createdat" gorm:"autoCreateTime;index;not null"`
+	UpdatedAt    time.Time  `json:"updatedat" gorm:"autoUpdateTime;index"`
+	ConnectionID uuid.UUID  `json:"connectionid"`
+	Connection   Connection `json:"connection"`
+
+	// VaultPath for AWS Account
+	// required: true
+	VaultPath string `json:"vaultpath" validate:"required" gorm:"not null"`
 
 	// AccessKey for AWS Account
 	// required: true
-	AccessKey string `json:"accesskey" validate:"required" gorm:"not null"`
+	AccessKey string `json:"accesskey" validate:"required" gorm:"-"`
 
 	// SecretAccessKey for AWS Account
 	// required: true
-	SecretAccessKey string `json:"secretaccesskey" validate:"required" gorm:"not null"`
+	SecretAccessKey string `json:"secretaccesskey" validate:"required" gorm:"-"`
 
-	// Region for AWS Account.
-	// required: true
-	Region string `json:"region" validate:"required" gorm:"not null"`
-
-	// DefaultLeaseTTL: Default life span of dynamically created AWS IAM user that will be used to start and stop the demo on AWS.
-	// required: true
-	DefaultLeaseTTL int `json:"default_lease_ttl" gorm:"not null"`
-
-	// MaxLeaseTTL: Max life span for dynamically created AWS IAM user that will be used to start and stop the demo on AWS.
+	// DefaultRegion for AWS Account
 	// required: false
-	MaxLeaseTTL int `json:"max_lease_ttl"`
+	DefaultRegion string `json:"default_region" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	DefaultLeaseTTL string `json:"default_lease_ttl" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	MaxLeaseTTL string `json:"max_lease_ttl" gorm:"-"`
+
+	// RoleName RoleName for AWS Account
+	// required: true
+	RoleName string `json:"role_name" validate:"required" gorm:"-"`
+
+	// PolicyARNs PolicyARNs for AWS Account
+	// required: true
+	PolicyARNs string `json:"policy_arns" validate:"required" gorm:"-"`
 }
 
 type Connections []*AWSConnection
@@ -99,10 +111,11 @@ type Connections []*AWSConnection
 func NewAWSConnection(cfg *configuration.Config) *AWSConnection {
 	var c AWSConnection
 
-	c.DefaultLeaseTTL = cfg.AWS.DefaultLeaseTTL
-	c.MaxLeaseTTL = cfg.AWS.MaxLeaseTTL
 	c.ID = uuid.New()
+	c.Connection.ID = uuid.New()
+	c.ConnectionID = c.Connection.ID
 	c.Connection.ConnectionType = NoConnectionType
+	c.VaultPath = cfg.Vault.PathPrefix + "/aws_" + c.ID.String()
 
 	return &c
 }
@@ -110,8 +123,6 @@ func NewAWSConnection(cfg *configuration.Config) *AWSConnection {
 func InitAWSConnection(id string, cfg *configuration.Config) *AWSConnection {
 	var c AWSConnection
 
-	c.DefaultLeaseTTL = cfg.AWS.DefaultLeaseTTL
-	c.MaxLeaseTTL = cfg.AWS.MaxLeaseTTL
 	c.ID, _ = uuid.Parse(id)
 
 	return &c
