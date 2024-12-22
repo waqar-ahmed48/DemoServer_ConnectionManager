@@ -919,7 +919,23 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 
 	c.Connection.ConnectionType = data.AWSConnectionType
 
-	result := h.pd.RWDB().Create(&c)
+	result := h.pd.RWDB().Create(&c.Connection)
+
+	if result.Error != nil {
+		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error)
+
+		helper.ReturnErrorWithAdditionalInfo(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorDatastoreSaveFailed,
+			requestid,
+			r,
+			&w,
+			result.Error)
+		return
+	}
+
+	result = h.pd.RWDB().Create(&c)
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error)
@@ -953,6 +969,8 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	if err != nil {
 		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)
 	}
+
+	c = nil
 }
 
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnection(next http.Handler) http.Handler {

@@ -70,8 +70,8 @@ type AWSConnection struct {
 	ID           uuid.UUID  `json:"id" gorm:"primaryKey"`
 	CreatedAt    time.Time  `json:"createdat" gorm:"autoCreateTime;index;not null"`
 	UpdatedAt    time.Time  `json:"updatedat" gorm:"autoUpdateTime;index"`
-	ConnectionID uuid.UUID  `json:"connectionid"`
-	Connection   Connection `json:"connection"`
+	ConnectionID uuid.UUID  `json:"connectionid" gorm:"not null;index"`
+	Connection   Connection `json:"connection" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 
 	// VaultPath for AWS Account
 	// required: true
