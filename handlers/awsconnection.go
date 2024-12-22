@@ -6,6 +6,7 @@ import (
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/helper"
 	"DemoServer_ConnectionManager/secretsmanager"
+	"DemoServer_ConnectionManager/utilities"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -964,7 +965,11 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = json.NewEncoder(w).Encode(c)
+	var c_wrapper data.AWSConnectionResponseWrapper
+
+	utilities.CopyMatchingFields(c, &c_wrapper)
+
+	err = json.NewEncoder(w).Encode(c_wrapper)
 
 	if err != nil {
 		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)

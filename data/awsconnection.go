@@ -64,7 +64,7 @@ type AWSConnectionPatchWrapper struct {
 	MaxLeaseTTL int `json:"max_lease_ttl"`
 }
 
-// AWSConnection represents AWSConnection resource returned by Microservice endpoints
+// AWSConnection represents AWSConnection resource serialized by Microservice endpoints
 // swagger:model
 type AWSConnection struct {
 	ID           uuid.UUID  `json:"id" gorm:"primaryKey"`
@@ -84,6 +84,40 @@ type AWSConnection struct {
 	// SecretAccessKey for AWS Account
 	// required: true
 	SecretAccessKey string `json:"secretaccesskey" validate:"required" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	DefaultRegion string `json:"default_region" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	DefaultLeaseTTL string `json:"default_lease_ttl" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	MaxLeaseTTL string `json:"max_lease_ttl" gorm:"-"`
+
+	// RoleName RoleName for AWS Account
+	// required: true
+	RoleName string `json:"role_name" validate:"required" gorm:"-"`
+
+	// PolicyARNs PolicyARNs for AWS Account
+	// required: true
+	PolicyARNs string `json:"policy_arns" validate:"required" gorm:"-"`
+}
+
+// AWSConnectionResponseWrapper represents limited information AWSConnection resource returned by Post, Get and List endpoints
+// swagger:model
+type AWSConnectionResponseWrapper struct {
+	ID           uuid.UUID  `json:"id" gorm:"primaryKey"`
+	CreatedAt    time.Time  `json:"createdat" gorm:"autoCreateTime;index;not null"`
+	UpdatedAt    time.Time  `json:"updatedat" gorm:"autoUpdateTime;index"`
+	ConnectionID uuid.UUID  `json:"connectionid" gorm:"not null;index"`
+	Connection   Connection `json:"connection" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+
+	// AccessKey for AWS Account
+	// required: true
+	AccessKey string `json:"accesskey" validate:"required" gorm:"-"`
 
 	// DefaultRegion for AWS Account
 	// required: false
