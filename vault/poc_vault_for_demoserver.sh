@@ -47,10 +47,6 @@ if [[ -n "$VAULT_COMMAND_OUTPUT" && "$VAULT_COMMAND_OUTPUT" != "null" ]]; then
   export AWS_SECRET_ACCESS_KEY=$(echo "$VAULT_COMMAND_OUTPUT" | grep 'secret_key' | awk '{print $2}')
   export AWS_DEFAULT_REGION="us-east-1"
 
-  #echo AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
-  #echo AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
-  #echo AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
-
   aws configure list
 
   echo "\nWaiting for 10 seconds..."

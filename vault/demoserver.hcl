@@ -1,6 +1,6 @@
 # Allow the user to enable a new AWS secrets engine
 path "sys/mounts/demoserver/*" {
-  capabilities = ["create", "update"]
+  capabilities = ["create", "read", "update"]
 }
 # Grant full access to secret engines starting with "demoserver/"
 path "demoserver/*" {

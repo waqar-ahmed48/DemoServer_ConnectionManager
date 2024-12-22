@@ -101,9 +101,13 @@ type AWSConnection struct {
 	// required: true
 	RoleName string `json:"role_name" validate:"required" gorm:"-"`
 
+	// CredentialType CredentialType for AWS Account Role
+	// required: true
+	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user" gorm:"-"`
+
 	// PolicyARNs PolicyARNs for AWS Account
 	// required: true
-	PolicyARNs string `json:"policy_arns" validate:"required" gorm:"-"`
+	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
 }
 
 // AWSConnectionResponseWrapper represents limited information AWSConnection resource returned by Post, Get and List endpoints
@@ -135,9 +139,13 @@ type AWSConnectionResponseWrapper struct {
 	// required: true
 	RoleName string `json:"role_name" validate:"required" gorm:"-"`
 
+	// CredentialType CredentialType for AWS Account Role
+	// required: true
+	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user" gorm:"-"`
+
 	// PolicyARNs PolicyARNs for AWS Account
 	// required: true
-	PolicyARNs string `json:"policy_arns" validate:"required" gorm:"-"`
+	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
 }
 
 type Connections []*AWSConnection

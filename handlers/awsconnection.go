@@ -175,6 +175,22 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 		response.AWSConnections = ([]data.AWSConnectionResponseWrapper{})
 	} else {
 		for _, value := range conns {
+			err := h.vh.GetAWSSecretsEngine(&value)
+
+			if err != nil {
+				helper.LogError(cl, helper.ErrorVaultLoadFailed, err)
+
+				helper.ReturnErrorWithAdditionalInfo(
+					cl,
+					http.StatusInternalServerError,
+					helper.ErrorVaultLoadFailed,
+					requestid,
+					r,
+					&w,
+					err)
+				return
+			}
+
 			var oRespConn data.AWSConnectionResponseWrapper
 			utilities.CopyMatchingFields(value, &oRespConn)
 			response.AWSConnections = append(response.AWSConnections, oRespConn)
@@ -911,7 +927,7 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 
 	c := r.Context().Value(KeyAWSConnectionRecord{}).(*data.AWSConnection)
 
-	err := h.vh.AddAWSSecretsEngine(c.VaultPath, c.AccessKey, c.SecretAccessKey, c.DefaultLeaseTTL, c.MaxLeaseTTL, c.DefaultRegion, c.RoleName, c.PolicyARNs)
+	err := h.vh.AddAWSSecretsEngine(c)
 	if err != nil {
 		helper.LogError(cl, helper.ErrorVaultAWSEngineFailed, err)
 

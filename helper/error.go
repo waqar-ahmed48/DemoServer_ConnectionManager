@@ -164,6 +164,9 @@ const (
 
 	//ErrorVaultAWSEngineFailed represents error message for request to Vault to enable new AWS Engine failed.
 	ErrorVaultAWSEngineFailed
+
+	//ErrorVaultLoadFailed represents load from vault failed.
+	ErrorVaultLoadFailed
 )
 
 // Error represent the details of error occurred.
