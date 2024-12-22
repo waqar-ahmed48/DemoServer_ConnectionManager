@@ -50,10 +50,10 @@ type KeyAWSConnectionRecord struct{}
 type KeyAWSConnectionPatchParamsRecord struct{}
 
 type AWSConnectionsResponse struct {
-	Skip           int                  `json:"skip"`
-	Limit          int                  `json:"limit"`
-	Total          int                  `json:"total"`
-	AWSConnections []data.AWSConnection `json:"awsconnections"`
+	Skip           int                                 `json:"skip"`
+	Limit          int                                 `json:"limit"`
+	Total          int                                 `json:"total"`
+	AWSConnections []data.AWSConnectionResponseWrapper `json:"awsconnections"`
 }
 
 type AWSConnectionHandler struct {
@@ -147,11 +147,13 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 
 	var response AWSConnectionsResponse
 
-	result := h.pd.RODB().Table("aws_connections").
-		Select("aws_connections.*, connections.name as connection_name").
-		Joins("left join connections on connections.id = aws_connections.id").
-		Order("connections.name").
-		Scan(&response.AWSConnections)
+	var conns []data.AWSConnection
+
+	result := h.pd.RODB().
+		Preload("Connection").     // Preloads the Connection struct
+		Order("connections.name"). // Orders by the name in the Connection table
+		Joins("left join connections on connections.id = aws_connections.connection_id").
+		Find(&conns) // Finds all AWSConnection entries
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
@@ -166,11 +168,17 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response.Total = len(response.AWSConnections)
+	response.Total = len(conns)
 	response.Skip = skip
 	response.Limit = limit
 	if response.Total == 0 {
-		response.AWSConnections = ([]data.AWSConnection{})
+		response.AWSConnections = ([]data.AWSConnectionResponseWrapper{})
+	} else {
+		for _, value := range conns {
+			var oRespConn data.AWSConnectionResponseWrapper
+			utilities.CopyMatchingFields(value, &oRespConn)
+			response.AWSConnections = append(response.AWSConnections, oRespConn)
+		}
 	}
 
 	err := json.NewEncoder(w).Encode(response)
