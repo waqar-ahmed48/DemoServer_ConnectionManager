@@ -1,0 +1,9 @@
+*.exe
+*.gz
+*redis-data
+.dockerenv
+testdata/connection_aws_demo01_1.json
+testdata/connection_aws_demo01_2.json
+testdata/connection_aws_demo01_3.json
+testdata/connection_aws_demo01_4.json
+DemoServer_ConnectionManager
