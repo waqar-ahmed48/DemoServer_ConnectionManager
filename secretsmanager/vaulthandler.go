@@ -450,7 +450,6 @@ func (vh *VaultHandler) configureAWSIAMRole(token string, path string, roleName 
 	url := fmt.Sprintf("%s/v1/%s/roles/%s", vh.vaultAddress, path, roleName)
 
 	data := map[string]interface{}{
-		//"policy_arns":     "[" + strings.Join(policyARNs, ", ") + "]",
 		"policy_arns":     policyARNs,
 		"credential_type": credentialType,
 	}

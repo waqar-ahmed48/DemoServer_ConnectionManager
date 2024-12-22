@@ -321,7 +321,7 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	connectionid := vars["connectionid"]
 	var connection data.AWSConnection
 
-	result := h.pd.RODB().First(&connection, "id = ?", connectionid)
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
@@ -349,7 +349,26 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err := json.NewEncoder(w).Encode(connection)
+	err := h.vh.GetAWSSecretsEngine(&connection)
+
+	if err != nil {
+		helper.LogError(cl, helper.ErrorVaultLoadFailed, err)
+
+		helper.ReturnErrorWithAdditionalInfo(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorVaultLoadFailed,
+			requestid,
+			r,
+			&w,
+			err)
+		return
+	}
+
+	var oRespConn data.AWSConnectionResponseWrapper
+	utilities.CopyMatchingFields(connection, &oRespConn)
+
+	err = json.NewEncoder(w).Encode(oRespConn)
 
 	if err != nil {
 		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)
