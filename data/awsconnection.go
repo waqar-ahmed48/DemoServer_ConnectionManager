@@ -197,36 +197,7 @@ func (c *AWSConnection) Initialize() *http.Client {
 	return &http.Client{Transport: tr}
 }
 
-func (c *AWSConnection) ProcessRequest(hc *http.Client, r *http.Request) (*http.Response, error) {
-	/*r.Header.Set("X-Atlassian-Token", "nocheck")
-
-	u, err := base64.StdEncoding.DecodeString(c.Username)
-
-	if err != nil {
-		return nil, err
-	}
-
-	p, err := base64.StdEncoding.DecodeString(c.Password)
-
-	if err != nil {
-		return nil, err
-	}
-
-	r.Header.Add("Authorization", "Basic "+basicAuth(string(u), string(p)))
-	res, err := hc.Do(r)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
-	*/
-
-	return nil, nil
-}
-
 func (c *AWSConnection) Test() error {
-
 	/*
 		hc := c.Initialize()
 

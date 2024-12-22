@@ -51,6 +51,9 @@ var (
 
 	//ErrVaultFailToConfigureAWSSecretsEngine failed to enable Vault's AWS secrets engine
 	ErrVaultFailToConfigureAWSSecretsEngine = errors.New("failed to configure Vault's AWS secrets engine")
+
+	//ErrAWSConnectionTestFailed AWS Connection Test Failed
+	ErrAWSConnectionTestFailed = errors.New("AWS Connection Test Failed")
 )
 
 // ErrorTypeEnum is the type enum log dictionary for microservice.

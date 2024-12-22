@@ -42,6 +42,13 @@ type vaultAWSConfigRolesList struct {
 	} `json:"data"`
 }
 
+type vaultAWSCred struct {
+	Data struct {
+		AccessKey string `json:"access_key"`
+		SecretKey string `json:"secret_key"`
+	} `json:"data"`
+}
+
 func (vh *VaultHandler) GetToken() (string, error) {
 
 	// Create the authentication payload
@@ -282,6 +289,50 @@ func (vh *VaultHandler) getAWSSecretsEngineRoleName(token string, path string, r
 	return err
 }
 
+func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role string) error {
+	// Prepare the request URL
+	url := fmt.Sprintf("%s/v1/%s/creds/%s", vh.vaultAddress, path, role)
+
+	// Create the request with appropriate headers
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	// Add the Vault token in the Authorization header
+	req.Header.Add("X-Vault-Token", token)
+
+	// Send the request
+	resp, err := vh.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check if the response status code is OK (200)
+	if resp.StatusCode != http.StatusOK {
+		return err
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var cred vaultAWSCred
+
+	err = json.Unmarshal(body, &cred)
+	if err != nil {
+		return err
+	}
+
+	if cred.Data.AccessKey == "" || cred.Data.SecretKey == "" {
+		return helper.ErrAWSConnectionTestFailed
+	}
+
+	return nil
+}
+
 func (vh *VaultHandler) GetAWSSecretsEngine(c *data.AWSConnection) error {
 	// Parse the response body into the struct
 	var awsConfig vaultAWSConfig
@@ -504,4 +555,26 @@ func (vh *VaultHandler) Ping() error {
 	default:
 		return helper.ErrVaultPingUnexpectedResponseCode
 	}
+}
+
+func (vh *VaultHandler) TestAWSSecretsEngine(path string) error {
+
+	var awsConfig vaultAWSConfig
+
+	token, err := vh.GetToken()
+	if err != nil {
+		return err
+	}
+
+	err = vh.getAWSSecretsEngineRoleName(token, path, &awsConfig)
+	if err != nil {
+		return err
+	}
+
+	err = vh.testAWSSecretsEngine(token, path, awsConfig.Data.Role)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

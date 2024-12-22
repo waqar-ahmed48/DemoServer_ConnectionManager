@@ -421,7 +421,7 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 
 	var response TestAWSConnectionResponse
 
-	result := h.pd.RODB().First(&connection, "id = ?", connectionid)
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
@@ -449,13 +449,16 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 		return
 	}
 
-	err := connection.Test()
+	err := h.vh.TestAWSSecretsEngine(connection.VaultPath)
 
 	if err != nil {
 		helper.LogDebug(cl, helper.DebugAWSConnectionTestFailed, err)
+		connection.Connection.SetTestFailed(err.Error())
+	} else {
+		connection.Connection.SetTestPassed()
 	}
 
-	result = h.pd.RWDB().Save(&connection)
+	result = h.pd.RWDB().Save(&connection.Connection)
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error)

@@ -74,3 +74,16 @@ type Connection struct {
 	// required: false
 	LastSuccessfulTest string `json:"lastsuccessfultest"`
 }
+
+func (c *Connection) SetTestFailed(e string) {
+	c.TestSuccessful = 0
+	c.TestedOn = time.Now().UTC().String()
+	c.TestError = e
+}
+
+func (c *Connection) SetTestPassed() {
+	c.TestSuccessful = 1
+	c.TestedOn = time.Now().UTC().String()
+	c.LastSuccessfulTest = time.Now().UTC().String()
+	c.TestError = ""
+}
