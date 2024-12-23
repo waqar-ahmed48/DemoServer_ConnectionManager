@@ -51,6 +51,12 @@ var (
 
 	//ErrVaultFailToConfigureAWSSecretsEngine failed to enable Vault's AWS secrets engine
 	ErrVaultFailToConfigureAWSSecretsEngine = errors.New("failed to configure Vault's AWS secrets engine")
+
+	//ErrAWSConnectionTestFailed AWS Connection Test Failed
+	ErrAWSConnectionTestFailed = errors.New("AWS Connection Test Failed")
+
+	//ErrVaultFailToDisableAWSSecretsEngine failed to enable Vault's AWS secrets engine
+	ErrVaultFailToDisableAWSSecretsEngine = errors.New("failed to disable Vault's AWS secrets engine")
 )
 
 // ErrorTypeEnum is the type enum log dictionary for microservice.
@@ -164,6 +170,12 @@ const (
 
 	//ErrorVaultAWSEngineFailed represents error message for request to Vault to enable new AWS Engine failed.
 	ErrorVaultAWSEngineFailed
+
+	//ErrorVaultLoadFailed represents load from vault failed.
+	ErrorVaultLoadFailed
+
+	//ErrorVaultDeleteFailed represents delete from vault failed.
+	ErrorVaultDeleteFailed
 )
 
 // Error represent the details of error occurred.

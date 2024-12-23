@@ -9,6 +9,7 @@ import (
 	"DemoServer_ConnectionManager/utilities"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -50,10 +51,10 @@ type KeyAWSConnectionRecord struct{}
 type KeyAWSConnectionPatchParamsRecord struct{}
 
 type AWSConnectionsResponse struct {
-	Skip           int                  `json:"skip"`
-	Limit          int                  `json:"limit"`
-	Total          int                  `json:"total"`
-	AWSConnections []data.AWSConnection `json:"awsconnections"`
+	Skip           int                                 `json:"skip"`
+	Limit          int                                 `json:"limit"`
+	Total          int                                 `json:"total"`
+	AWSConnections []data.AWSConnectionResponseWrapper `json:"awsconnections"`
 }
 
 type AWSConnectionHandler struct {
@@ -147,11 +148,13 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 
 	var response AWSConnectionsResponse
 
-	result := h.pd.RODB().Table("aws_connections").
-		Select("aws_connections.*, connections.name as connection_name").
-		Joins("left join connections on connections.id = aws_connections.id").
-		Order("connections.name").
-		Scan(&response.AWSConnections)
+	var conns []data.AWSConnection
+
+	result := h.pd.RODB().
+		Preload("Connection").     // Preloads the Connection struct
+		Order("connections.name"). // Orders by the name in the Connection table
+		Joins("left join connections on connections.id = aws_connections.connection_id").
+		Find(&conns) // Finds all AWSConnection entries
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
@@ -166,11 +169,33 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response.Total = len(response.AWSConnections)
+	response.Total = len(conns)
 	response.Skip = skip
 	response.Limit = limit
 	if response.Total == 0 {
-		response.AWSConnections = ([]data.AWSConnection{})
+		response.AWSConnections = ([]data.AWSConnectionResponseWrapper{})
+	} else {
+		for _, value := range conns {
+			err := h.vh.GetAWSSecretsEngine(&value)
+
+			if err != nil {
+				helper.LogError(cl, helper.ErrorVaultLoadFailed, err)
+
+				helper.ReturnErrorWithAdditionalInfo(
+					cl,
+					http.StatusInternalServerError,
+					helper.ErrorVaultLoadFailed,
+					requestid,
+					r,
+					&w,
+					err)
+				return
+			}
+
+			var oRespConn data.AWSConnectionResponseWrapper
+			utilities.CopyMatchingFields(value, &oRespConn)
+			response.AWSConnections = append(response.AWSConnections, oRespConn)
+		}
 	}
 
 	err := json.NewEncoder(w).Encode(response)
@@ -297,7 +322,7 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	connectionid := vars["connectionid"]
 	var connection data.AWSConnection
 
-	result := h.pd.RODB().First(&connection, "id = ?", connectionid)
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
@@ -325,7 +350,26 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err := json.NewEncoder(w).Encode(connection)
+	err := h.vh.GetAWSSecretsEngine(&connection)
+
+	if err != nil {
+		helper.LogError(cl, helper.ErrorVaultLoadFailed, err)
+
+		helper.ReturnErrorWithAdditionalInfo(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorVaultLoadFailed,
+			requestid,
+			r,
+			&w,
+			err)
+		return
+	}
+
+	var oRespConn data.AWSConnectionResponseWrapper
+	utilities.CopyMatchingFields(connection, &oRespConn)
+
+	err = json.NewEncoder(w).Encode(oRespConn)
 
 	if err != nil {
 		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)
@@ -378,7 +422,7 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 
 	var response TestAWSConnectionResponse
 
-	result := h.pd.RODB().First(&connection, "id = ?", connectionid)
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
@@ -406,13 +450,16 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 		return
 	}
 
-	err := connection.Test()
+	err := h.vh.TestAWSSecretsEngine(connection.VaultPath)
 
 	if err != nil {
 		helper.LogDebug(cl, helper.DebugAWSConnectionTestFailed, err)
+		connection.Connection.SetTestFailed(err.Error())
+	} else {
+		connection.Connection.SetTestPassed()
 	}
 
-	result = h.pd.RWDB().Save(&connection)
+	result = h.pd.RWDB().Save(&connection.Connection)
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error)
@@ -823,28 +870,43 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
-	result := h.pd.RWDB().Delete(&connection)
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
-		helper.LogDebug(cl, helper.ErrorDatastoreDeleteFailed, err)
+		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
 
 		helper.ReturnError(
 			cl,
-			http.StatusBadRequest,
-			helper.ErrorDatastoreDeleteFailed,
+			http.StatusInternalServerError,
+			helper.ErrorDatastoreRetrievalFailed,
 			requestid,
 			r,
 			&w)
 		return
 	}
 
-	if result.RowsAffected != 1 {
+	if result.RowsAffected == 0 {
 		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone)
 
 		helper.ReturnError(
 			cl,
-			http.StatusInternalServerError,
+			http.StatusNotFound,
 			helper.ErrorResourceNotFound,
+			requestid,
+			r,
+			&w)
+		return
+	}
+
+	err = h.deleteAWSConnection(&connection)
+
+	if err != nil {
+		helper.LogDebug(cl, helper.ErrorDatastoreDeleteFailed, err)
+
+		helper.ReturnError(
+			cl,
+			http.StatusBadRequest,
+			helper.ErrorDatastoreDeleteFailed,
 			requestid,
 			r,
 			&w)
@@ -860,6 +922,41 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 	if err != nil {
 		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)
 	}
+}
+
+func (h *AWSConnectionHandler) deleteAWSConnection(c *data.AWSConnection) error {
+	// Begin a transaction
+	tx := h.pd.RWDB().Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	err := h.vh.RemoveAWSSecretsEngine(c)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete from aws_connections
+	if err = tx.Exec("DELETE FROM aws_connections WHERE id = ?", c.ID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete aws_connection: %w", err)
+	}
+
+	// Delete from connections
+	if err := tx.Exec("DELETE FROM connections WHERE id = ?", c.ConnectionID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete connection: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.Request) {
@@ -903,7 +1000,7 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 
 	c := r.Context().Value(KeyAWSConnectionRecord{}).(*data.AWSConnection)
 
-	err := h.vh.AddAWSSecretsEngine(c.VaultPath, c.AccessKey, c.SecretAccessKey, c.DefaultLeaseTTL, c.MaxLeaseTTL, c.DefaultRegion, c.RoleName, c.PolicyARNs)
+	err := h.vh.AddAWSSecretsEngine(c)
 	if err != nil {
 		helper.LogError(cl, helper.ErrorVaultAWSEngineFailed, err)
 
