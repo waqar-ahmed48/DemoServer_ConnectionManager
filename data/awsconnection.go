@@ -41,27 +41,35 @@ type AWSConnectionPostWrapper struct {
 // AWSConnectionPatchWrapper represents AWSConnection attributes for PATCH request body schema.
 // swagger:model
 type AWSConnectionPatchWrapper struct {
-	ConnectionPatchWrapper
+	Connection ConnectionPatchWrapper `json:"connection" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 
 	// AccessKey for AWS Account
 	// required: true
-	AccessKey string `json:"accesskey" validate:"required"`
+	AccessKey string `json:"accesskey" validate:"required" gorm:"-"`
 
 	// SecretAccessKey for AWS Account
 	// required: true
-	SecretAccessKey string `json:"secretaccesskey" validate:"required"`
+	SecretAccessKey string `json:"secretaccesskey" validate:"required" gorm:"-"`
 
-	// Region for AWS Account.
-	// required: true
-	Region string `json:"region" validate:"required"`
-
-	// DefaultLeaseTTL: Default life span of dynamically created AWS IAM user that will be used to start and stop the demo on AWS.
-	// required: true
-	DefaultLeaseTTL int `json:"default_lease_ttl"`
-
-	// MaxLeaseTTL: Max life span for dynamically created AWS IAM user that will be used to start and stop the demo on AWS.
+	// DefaultRegion for AWS Account
 	// required: false
-	MaxLeaseTTL int `json:"max_lease_ttl"`
+	DefaultRegion string `json:"default_region" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	DefaultLeaseTTL string `json:"default_lease_ttl" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	MaxLeaseTTL string `json:"max_lease_ttl" gorm:"-"`
+
+	// CredentialType CredentialType for AWS Account Role
+	// required: true
+	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user" gorm:"-"`
+
+	// PolicyARNs PolicyARNs for AWS Account
+	// required: true
+	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
 }
 
 // AWSConnection represents AWSConnection resource serialized by Microservice endpoints

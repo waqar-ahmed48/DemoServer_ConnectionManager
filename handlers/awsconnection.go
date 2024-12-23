@@ -549,7 +549,7 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 
 	var connection data.AWSConnection
 
-	result := h.pd.RODB().First(&connection, "id = ?", connectionid)
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
 		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
@@ -577,231 +577,90 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if p.Name != "" {
-		connection.Connection.Name = p.Name
-		connection.Connection.TestSuccessful = 0
+	err := h.vh.GetAWSSecretsEngine(&connection)
+
+	if err != nil {
+		helper.LogError(cl, helper.ErrorVaultLoadFailed, err)
+
+		helper.ReturnErrorWithAdditionalInfo(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorVaultLoadFailed,
+			requestid,
+			r,
+			&w,
+			err)
+		return
 	}
 
-	if p.Description != "" {
-		connection.Connection.Description = p.Description
-		connection.Connection.TestSuccessful = 0
+	utilities.CopyMatchingFields(p.Connection, &connection.Connection)
+	utilities.CopyMatchingFields(p, &connection)
+
+	connection.Connection.ResetTestStatus()
+
+	err = h.updateAWSConnection(&connection)
+
+	if err != nil {
+		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, err)
+
+		helper.ReturnError(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorDatastoreSaveFailed,
+			requestid,
+			r,
+			&w)
+		return
 	}
 
-	/*
-		updated := false
-
-		for k, v := range params {
-			if !strings.EqualFold(k, "connectiontype") {
-				if strings.EqualFold(k, "Name") {
-					if reflect.TypeOf(v).Kind() != reflect.String {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForTitle, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForTitle,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.Name = v.(string)
-						updated = true
-					}
-				} else if strings.EqualFold(k, "Description") {
-					if reflect.TypeOf(v).Kind() != reflect.String {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForDescription, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForDescription,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.Description = v.(string)
-						updated = true
-					}
-				} else if strings.EqualFold(k, "URL") {
-					if reflect.TypeOf(v).Kind() != reflect.String {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForURL, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForURL,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.URL = v.(string)
-						updated = true
-					}
-				} else if strings.EqualFold(k, "Username") {
-					if reflect.TypeOf(v).Kind() != reflect.String {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForUsername, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForUsername,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.Username = v.(string)
-						updated = true
-					}
-				} else if strings.EqualFold(k, "Password") {
-					if reflect.TypeOf(v).Kind() != reflect.String {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForPassword, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForPassword,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.Password = v.(string)
-						updated = true
-					}
-				} else if strings.EqualFold(k, "Max_Issue_Description") {
-					if reflect.TypeOf(v).Kind() != reflect.Float64 {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForMaxIssueDescription, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForMaxIssueDescription,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.Max_Issue_Description = int(v.(float64))
-						updated = true
-					}
-				} else if strings.EqualFold(k, "InsecureAllowed") {
-					if reflect.TypeOf(v).Kind() != reflect.Float64 {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForInsecureAllowed, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForInsecureAllowed,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.InsecureAllowed = int(v.(float64))
-						updated = true
-					}
-				} else if strings.EqualFold(k, "ProjectId") {
-					if reflect.TypeOf(v).Kind() != reflect.Float64 {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForProjectID, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForProjectID,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.ProjectId = int(v.(float64))
-						updated = true
-					}
-				} else if strings.EqualFold(k, "IssueTypeId") {
-					if reflect.TypeOf(v).Kind() != reflect.Float64 {
-						helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForIssueTypeID, helper.ErrNone)
-
-						helper.ReturnError(
-							cl,
-							http.StatusInternalServerError,
-							helper.ErrorAWSConnectionPatchInvalidValueForIssueTypeID,
-							requestid,
-							r,
-							&w)
-						return
-					} else {
-						connection.IssueTypeId = int(v.(float64))
-						updated = true
-					}
-				}
-			} else {
-				if reflect.TypeOf(v).Kind() != reflect.String {
-					helper.LogDebug(cl, helper.ErrorAWSConnectionPatchInvalidValueForConnectionType, helper.ErrNone)
-
-					helper.ReturnError(
-						cl,
-						http.StatusBadRequest,
-						helper.ErrorAWSConnectionPatchInvalidValueForConnectionType,
-						requestid,
-						r,
-						&w)
-					return
-				} else {
-					ctype := v.(string)
-
-					if strings.ToLower(ctype) != data.NoConnectionType.String() && ctype != "" {
-						if strings.ToLower(ctype) != data.AWSConnectionType.String() {
-							helper.LogDebug(cl, helper.ErrorConnectionTypeUpdateNotAllowed, helper.ErrNone)
-
-							helper.ReturnError(
-								cl,
-								http.StatusBadRequest,
-								helper.ErrorConnectionTypeUpdateNotAllowed,
-								requestid,
-								r,
-								&w)
-						}
-					}
-				}
-			}
-		}
-
-		if updated {
-			connection.TestSuccessful = 0
-		}
-	*/
-	result = h.pd.RWDB().Save(&connection)
+	result = h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error)
+		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
 
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
-			helper.ErrorDatastoreSaveFailed,
+			helper.ErrorDatastoreRetrievalFailed,
 			requestid,
 			r,
 			&w)
 		return
 	}
 
-	if result.RowsAffected != 1 {
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, helper.ErrNone)
+	if result.RowsAffected == 0 {
+		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone)
 
 		helper.ReturnError(
 			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreSaveFailed,
+			http.StatusNotFound,
+			helper.ErrorResourceNotFound,
 			requestid,
 			r,
 			&w)
 		return
 	}
 
-	err := json.NewEncoder(w).Encode(connection)
+	err = h.vh.GetAWSSecretsEngine(&connection)
+
+	if err != nil {
+		helper.LogError(cl, helper.ErrorVaultLoadFailed, err)
+
+		helper.ReturnErrorWithAdditionalInfo(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorVaultLoadFailed,
+			requestid,
+			r,
+			&w,
+			err)
+		return
+	}
+
+	var oRespConn data.AWSConnectionResponseWrapper
+	utilities.CopyMatchingFields(connection, &oRespConn)
+
+	err = json.NewEncoder(w).Encode(oRespConn)
 
 	if err != nil {
 		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)
@@ -949,6 +808,43 @@ func (h *AWSConnectionHandler) deleteAWSConnection(c *data.AWSConnection) error 
 	if err := tx.Exec("DELETE FROM connections WHERE id = ?", c.ConnectionID).Error; err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to delete connection: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (h *AWSConnectionHandler) updateAWSConnection(c *data.AWSConnection) error {
+	// Begin a transaction
+	tx := h.pd.RWDB().Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	err := h.vh.UpdateAWSSecretsEngine(c)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	result := tx.Save(&c.Connection)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	result = tx.Save(c)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
 	}
 
 	// Commit the transaction

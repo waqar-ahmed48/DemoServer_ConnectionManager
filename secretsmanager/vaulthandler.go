@@ -402,6 +402,30 @@ func (vh *VaultHandler) AddAWSSecretsEngine(c *data.AWSConnection) error {
 	return nil
 }
 
+func (vh *VaultHandler) UpdateAWSSecretsEngine(c *data.AWSConnection) error {
+	token, err := vh.GetToken()
+	if err != nil {
+		return err
+	}
+
+	err = vh.configureAWSSecretsEngine(token, c.VaultPath, c.DefaultLeaseTTL, c.MaxLeaseTTL)
+	if err != nil {
+		return err
+	}
+
+	err = vh.configureAWSRootCredentials(token, c.VaultPath, c.AccessKey, c.SecretAccessKey, c.DefaultRegion)
+	if err != nil {
+		return err
+	}
+
+	err = vh.configureAWSIAMRole(token, c.VaultPath, c.RoleName, c.PolicyARNs, c.CredentialType)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (vh *VaultHandler) RemoveAWSSecretsEngine(c *data.AWSConnection) error {
 	token, err := vh.GetToken()
 	if err != nil {
@@ -510,6 +534,38 @@ func (vh *VaultHandler) configureAWSRootCredentials(token string, path string, a
 	return nil
 }
 
+func (vh *VaultHandler) updateAWSRootCredentials(token string, path string, accessKey string, secretKey string, defaultRegion string) error {
+	url := fmt.Sprintf("%s/v1/%s/config/root", vh.vaultAddress, path)
+	data := map[string]interface{}{
+		"access_key": accessKey,
+		"secret_key": secretKey,
+		"region":     defaultRegion,
+	}
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Vault-Token", token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := vh.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return helper.ErrVaultFailToConfigureAWSSecretsEngine
+	}
+
+	return nil
+}
+
 func (vh *VaultHandler) configureAWSSecretsEngine(token string, path string, defaultTTL string, maxTTL string) error {
 
 	url := fmt.Sprintf("%s/v1/sys/mounts/%s/tune", vh.vaultAddress, path)
@@ -555,6 +611,39 @@ func (vh *VaultHandler) configureAWSIAMRole(token string, path string, roleName 
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Vault-Token", token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := vh.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to configure IAM role: %s", string(body))
+	}
+
+	return nil
+}
+
+func (vh *VaultHandler) updateAWSIAMRole(token string, path string, roleName string, policyARNs []string, credentialType string) error {
+	url := fmt.Sprintf("%s/v1/%s/roles/%s", vh.vaultAddress, path, roleName)
+
+	data := map[string]interface{}{
+		"policy_arns":     policyARNs,
+		"credential_type": credentialType,
+	}
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(payload))
 	if err != nil {
 		return err
 	}
