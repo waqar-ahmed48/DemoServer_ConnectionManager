@@ -28,12 +28,12 @@ type ConnectionPostWrapper struct {
 // swagger:model
 type ConnectionPatchWrapper struct {
 	// User friendly name for Connection
-	// required: false
-	Name string `json:"name"`
+	// required: true
+	Name string `json:"name" validate:"required" gorm:"index;not null;unique"`
 
 	// Description of Connection
 	// required: false
-	Description string `json:"description"`
+	Description string `json:"description" gorm:"index"`
 }
 
 // Connection represents generic Connection resource returned by Microservice endpoints
@@ -85,5 +85,10 @@ func (c *Connection) SetTestPassed() {
 	c.TestSuccessful = 1
 	c.TestedOn = time.Now().UTC().String()
 	c.LastSuccessfulTest = time.Now().UTC().String()
+	c.TestError = ""
+}
+
+func (c *Connection) ResetTestStatus() {
+	c.TestSuccessful = 0
 	c.TestError = ""
 }
