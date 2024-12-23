@@ -54,6 +54,9 @@ var (
 
 	//ErrAWSConnectionTestFailed AWS Connection Test Failed
 	ErrAWSConnectionTestFailed = errors.New("AWS Connection Test Failed")
+
+	//ErrVaultFailToDisableAWSSecretsEngine failed to enable Vault's AWS secrets engine
+	ErrVaultFailToDisableAWSSecretsEngine = errors.New("failed to disable Vault's AWS secrets engine")
 )
 
 // ErrorTypeEnum is the type enum log dictionary for microservice.
@@ -170,6 +173,9 @@ const (
 
 	//ErrorVaultLoadFailed represents load from vault failed.
 	ErrorVaultLoadFailed
+
+	//ErrorVaultDeleteFailed represents delete from vault failed.
+	ErrorVaultDeleteFailed
 )
 
 // Error represent the details of error occurred.

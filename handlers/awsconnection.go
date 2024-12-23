@@ -9,6 +9,7 @@ import (
 	"DemoServer_ConnectionManager/utilities"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -869,28 +870,43 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
-	result := h.pd.RWDB().Delete(&connection)
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
-		helper.LogDebug(cl, helper.ErrorDatastoreDeleteFailed, err)
+		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
 
 		helper.ReturnError(
 			cl,
-			http.StatusBadRequest,
-			helper.ErrorDatastoreDeleteFailed,
+			http.StatusInternalServerError,
+			helper.ErrorDatastoreRetrievalFailed,
 			requestid,
 			r,
 			&w)
 		return
 	}
 
-	if result.RowsAffected != 1 {
+	if result.RowsAffected == 0 {
 		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone)
 
 		helper.ReturnError(
 			cl,
-			http.StatusInternalServerError,
+			http.StatusNotFound,
 			helper.ErrorResourceNotFound,
+			requestid,
+			r,
+			&w)
+		return
+	}
+
+	err = h.deleteAWSConnection(&connection)
+
+	if err != nil {
+		helper.LogDebug(cl, helper.ErrorDatastoreDeleteFailed, err)
+
+		helper.ReturnError(
+			cl,
+			http.StatusBadRequest,
+			helper.ErrorDatastoreDeleteFailed,
 			requestid,
 			r,
 			&w)
@@ -906,6 +922,41 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 	if err != nil {
 		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)
 	}
+}
+
+func (h *AWSConnectionHandler) deleteAWSConnection(c *data.AWSConnection) error {
+	// Begin a transaction
+	tx := h.pd.RWDB().Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	err := h.vh.RemoveAWSSecretsEngine(c)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete from aws_connections
+	if err = tx.Exec("DELETE FROM aws_connections WHERE id = ?", c.ID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete aws_connection: %w", err)
+	}
+
+	// Delete from connections
+	if err := tx.Exec("DELETE FROM connections WHERE id = ?", c.ConnectionID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete connection: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.Request) {

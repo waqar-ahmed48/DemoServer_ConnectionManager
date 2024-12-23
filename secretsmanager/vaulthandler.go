@@ -402,6 +402,20 @@ func (vh *VaultHandler) AddAWSSecretsEngine(c *data.AWSConnection) error {
 	return nil
 }
 
+func (vh *VaultHandler) RemoveAWSSecretsEngine(c *data.AWSConnection) error {
+	token, err := vh.GetToken()
+	if err != nil {
+		return err
+	}
+
+	err = vh.disableAWSSecretsEngine(token, c.VaultPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (vh *VaultHandler) enableAWSSecretsEngine(token string, path string) error {
 
 	url := fmt.Sprintf("%s/v1/sys/mounts/%s", vh.vaultAddress, path)
@@ -428,6 +442,37 @@ func (vh *VaultHandler) enableAWSSecretsEngine(token string, path string) error 
 
 	if resp.StatusCode != http.StatusNoContent {
 		return helper.ErrVaultFailToEnableAWSSecretsEngine
+	}
+
+	return nil
+}
+
+func (vh *VaultHandler) disableAWSSecretsEngine(token string, path string) error {
+
+	url := fmt.Sprintf("%s/v1/sys/mounts/%s", vh.vaultAddress, path)
+	data := map[string]interface{}{
+		"type": "aws",
+	}
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("DELETE", url, bytes.NewBuffer(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Vault-Token", token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := vh.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return helper.ErrVaultFailToDisableAWSSecretsEngine
 	}
 
 	return nil

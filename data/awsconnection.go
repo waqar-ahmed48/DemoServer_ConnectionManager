@@ -70,7 +70,7 @@ type AWSConnection struct {
 	ID           uuid.UUID  `json:"id" gorm:"primaryKey"`
 	CreatedAt    time.Time  `json:"createdat" gorm:"autoCreateTime;index;not null"`
 	UpdatedAt    time.Time  `json:"updatedat" gorm:"autoUpdateTime;index"`
-	ConnectionID uuid.UUID  `json:"connectionid" gorm:"not null;index"`
+	ConnectionID uuid.UUID  `json:"connectionid" gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	Connection   Connection `json:"connection" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 
 	// VaultPath for AWS Account
@@ -195,51 +195,4 @@ func (c *AWSConnection) Initialize() *http.Client {
 	bool_insecureallowed := true
 	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: bool_insecureallowed}}
 	return &http.Client{Transport: tr}
-}
-
-func (c *AWSConnection) Test() error {
-	/*
-		hc := c.Initialize()
-
-		url := c.URL
-
-		if !strings.HasSuffix(c.URL, "/") {
-			url += "/"
-		}
-
-		url += "rest/api/2/search?jql="
-
-		req, req_err := http.NewRequest("GET", url, nil)
-
-		if req_err != nil {
-			return req_err
-		}
-
-		resp_i, do_err := c.ProcessRequest(hc, req)
-
-		c.TestedOn = time.Now().UTC().String()
-
-		if do_err != nil {
-			c.TestError = "Error: " + do_err.Error()
-			c.TestSuccessful = 0
-			return do_err
-		}
-
-		defer func() {
-			err := resp_i.Body.Close()
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-		}()
-
-		c.TestError = "HTTPStatus: " + strconv.Itoa(resp_i.StatusCode) + " - " + resp_i.Status
-
-		if resp_i.StatusCode == http.StatusOK {
-			c.TestSuccessful = 1
-			c.LastSuccessfulTest = time.Now().UTC().String()
-		} else {
-			c.TestSuccessful = 0
-		}*/
-
-	return nil
 }
