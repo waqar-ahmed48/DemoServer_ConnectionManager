@@ -34,7 +34,7 @@ func NewConnectionsHandler(cfg *configuration.Config, l *slog.Logger, pd *datala
 
 func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Request) {
 	// swagger:operation GET /connections Connection GetConnections
-	// GET - Connections
+	// List Connections
 	//
 	// Endpoint: GET - /v1/connectionmgmt/connections
 	//
