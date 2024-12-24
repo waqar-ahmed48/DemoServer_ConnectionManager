@@ -1,0 +1,16 @@
+{
+    "connection": {
+      "name": "Demo AWS Account",
+      "description": "Description - Demo AWS Account "
+    },
+    "accesskey": "dummy access key",
+    "secretaccesskey": "dummy secret key",
+    "default_region": "us-east-1",
+    "default_lease_ttl": "20s",
+    "max_lease_ttl": "60s",
+    "role_name": "DemoUser",
+    "credential_type": "iam_user",
+    "policy_arns": [
+      "arn:aws:iam::aws:policy/AdministratorAccess"
+    ]
+}

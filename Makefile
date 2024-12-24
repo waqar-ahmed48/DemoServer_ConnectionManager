@@ -33,7 +33,7 @@ build: swagger
 	
 	@echo  "Go build app..."
 	go build -mod=mod
-	chmod +x main
+	chmod +x DemoServer_ConnectionManager
 
 ifeq ($(config), testdocker)
 rundocker: build
@@ -63,12 +63,12 @@ testdocker: rundocker
 
 	@echo "test all postive test cases"
 	go clean -testcache
-	go test -mod=mod -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
+	go test -mod=mod -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
 
 	@echo "bring postgres down so before initiating PostgresDown Negative test cases"
 	docker-compose -f ./postgres/docker-compose.yml down
 	go clean -testcache
-	go test -mod=mod -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
+	go test -mod=mod -timeout 300s -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
 
 	@echo "bring down stack"
 	docker-compose down
@@ -106,15 +106,15 @@ testk8s: runk8s
 	until curl http://${DEMOSERVER_CONNECTIONMANAGER_SERVICE_IP}:${DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT}/v1/connectionmgmt/status; do printf '.';sleep 1;done
 
 	#test all postive test cases
-	#go test -mod=mod -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > TestResults-Positive.json || true
+	#go test -mod=mod -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > TestResults-Positive.json || true
 	go clean -testcache
-	go test -mod=mod -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
+	go test -mod=mod -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
 
 	#bring DB down so before initiating PostgresDown Negative test cases
 	helm delete my-postgres-release --wait
-	#go test -mod=mod -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > TestResults-Negative_PostgresDown.json
+	#go test -mod=mod -timeout 300s -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > TestResults-Negative_PostgresDown.json
 	go clean -testcache
-	go test -mod=mod -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
+	go test -mod=mod -timeout 300s -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
 
 	helm delete demoserver_connectionmanager --wait
 	kubectl delete secret demoserver-connectionmanager-postgres
@@ -132,7 +132,7 @@ runcoverage: build
 	rm -f ./e2e_test/coverage_reports/TestResults*
 
 	#kill any instance if already running.
-	pkill main || true
+	pkill DemoServer_ConnectionManager || true
 	docker-compose down || true
 
 testcoverage: runcoverage
@@ -144,23 +144,23 @@ testcoverage: runcoverage
 	docker-compose -f ./postgres/docker-compose.yml up -d
 
 	#bring up application
-	GOCOVERDIR=./e2e_test/coverage_reports ./main >main.log &
+	GOCOVERDIR=./e2e_test/coverage_reports ./DemoServer_ConnectionManager >DemoServer_ConnectionManager.log &
 	
 	until curl http://localhost:5678/v1/connectionmgmt/status; do printf '.';sleep 1;done
 
 	#test all postive test cases
-	#go test -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > ./e2e_test/coverage_reports/TestResults-Positive.json || true
+	#go test -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > ./e2e_test/coverage_reports/TestResults-Positive.json || true
 	go clean -testcache
-	go test -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
+	go test -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
 
 	#bring postgres down so before initiating PostgresDown Negative test cases
 	docker-compose -f ./postgres/docker-compose.yml down
-	#go test -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > ./e2e_test/coverage_reports/TestResults-Negative_PostgresDown_.json || true
+	#go test -timeout 300s -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > ./e2e_test/coverage_reports/TestResults-Negative_PostgresDown_.json || true
 	go clean -testcache
-	go test -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
+	go test -timeout 300s -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
 
 	#bring down stack
-	pkill -SIGINT main
+	pkill -f -SIGINT DemoServer_ConnectionManager
 
 	#generate coverage reports
 	go tool covdata percent -i=./e2e_test/coverage_reports

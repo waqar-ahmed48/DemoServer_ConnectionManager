@@ -12,9 +12,13 @@ import (
 )
 
 const (
-	prefixHTTP = "http://"
-	strPatched = "_Patched"
-	strHyphen  = " - "
+	prefixHTTP         = "http://"
+	strPatched         = "_Patched"
+	strHyphen          = "-"
+	strUnderscore      = "_"
+	strDefaultLeaseTTL = "99s"
+	strMaxLeaseTTL     = "101s"
+	strDefaultRegion   = "us-west-2"
 )
 
 type EndToEndSuite struct {
@@ -41,7 +45,7 @@ func GetIPAndPort() (string, string) {
 		fmt.Printf("Environment varaiable DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT not set. Setting it to default: %s\n", port)
 	}
 
-	fmt.Printf("ip: %s, port: %s\n", ip, port)
+	//fmt.Printf("ip: %s, port: %s\n", ip, port)
 
 	return ip, port
 }

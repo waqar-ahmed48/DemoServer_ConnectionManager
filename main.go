@@ -172,7 +172,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGTERM)
 
 	sig := <-sigChan
-	l.Info("Terminal request received. Initiating Graceful shutdown", sig)
+	l.Info("Terminal request received. Initiating Graceful shutdown", "signal", sig.String())
 
 	tc, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Server.HTTPShutdownTimeout)*time.Second)
 	defer cancel()
