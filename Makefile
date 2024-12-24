@@ -86,22 +86,39 @@ runk8s: build
 	rm -f ./e2e_test/coverage_reports/TestResults*
 
 	#kill any instance if already running.
-	#docker-compose down || true
-	#docker-compose -f ./postgres/docker-compose.yml down || true
+	docker-compose down || true
+	docker-compose -f ./postgres/docker-compose.yml down || true
 
 testk8s: runk8s
+
 	@echo "---------------------------------------------------------------------------"
 	@echo "-------------------------------- Test in K8s ------------------------------"
 	@echo "---------------------------------------------------------------------------"
-	#kill stack if already running
-	helm delete demoserver_connectionmanager --wait || true
-	helm delete my-postgres-release --wait || true
-	kubectl delete secret demoserver-connectionmanager-postgres || true
+#	kill stack if already running
+#	kubectl exec vault-0 --namespace vault-ns -- vault operator seal || true
+	helm delete demoserver-connectionmanager --namespace demoserver --wait || true
+	helm delete my-postgres-release --namespace demoserver --wait || true
+	helm delete vault --namespace vault-ns --wait || true
+	kubectl delete namespace demoserver --wait || true
+	kubectl delete namespace vault-ns --wait || true
+	kubectl delete -n demoserver secret demoserver-connectionmanager || true
 
-	#bring up stack
-	kubectl create secret generic demoserver-connectionmanager-postgres --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_HOST=my-postgres-release-postgresql-ha-pgpool.default.svc.cluster.local --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_PORT=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_PORT} --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_USERNAME=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_USERNAME} --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_USERNAME=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_USERNAME} --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_PASSWORD=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_PASSWORD} --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_CONNECTIONPOOLSIZE=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_CONNECTIONPOOLSIZE} --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_CONNECTIONPOOLSIZE=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_CONNECTIONPOOLSIZE} --from-literal=DEMOSERVER_CONNECTIONMANAGER_POSTGRES_SSLMODE=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_SSLMODE}
-	helm install my-postgres-release oci://registry-1.docker.io/bitnamicharts/postgresql-ha --set global.postgresql.password=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} --set global.postgresql.repmgrPassword=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} --set global.pgpool.adminPassword=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD}  --set postgresql.maxConnections=1000 --wait
-	helm install demoserver_connectionmanager demoserver_connectionmanager_helm_chart/ --wait
+#	bring up stack
+	helm repo add hashicorp https://helm.releases.hashicorp.com || true
+	kubectl create namespace vault-ns || true
+	kubectl create namespace demoserver || true
+	helm install vault hashicorp/vault -n vault-ns --wait || true
+
+	@echo "calling vaultsetup script"
+	./setup_vault_k8s.sh
+
+	helm install -n demoserver my-postgres-release oci://registry-1.docker.io/bitnamicharts/postgresql-ha \
+		--set global.postgresql.password=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
+		--set global.postgresql.repmgrPassword=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
+		--set global.pgpool.adminPassword=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
+		--set postgresql.maxConnections=1000 --wait
+
+	helm install -n demoserver demoserver-connectionmanager demoserver_connectionmanager_helm_chart/ --wait
 
 	until curl http://${DEMOSERVER_CONNECTIONMANAGER_SERVICE_IP}:${DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT}/v1/connectionmgmt/status; do printf '.';sleep 1;done
 
@@ -111,13 +128,13 @@ testk8s: runk8s
 	go test -mod=mod -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
 
 	#bring DB down so before initiating PostgresDown Negative test cases
-	helm delete my-postgres-release --wait
+	helm delete my-postgres-release -n demoserver --wait
 	#go test -mod=mod -timeout 300s -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > TestResults-Negative_PostgresDown.json
 	go clean -testcache
 	go test -mod=mod -timeout 300s -run TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
 
-	helm delete demoserver_connectionmanager --wait
-	kubectl delete secret demoserver-connectionmanager-postgres
+	helm delete demoserver-connectionmanager -n demoserver --wait
+	kubectl delete secret demoserver-connectionmanager -n demoserver
 
 endif
 

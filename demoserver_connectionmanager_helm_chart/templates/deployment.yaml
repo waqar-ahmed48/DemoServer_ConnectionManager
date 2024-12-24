@@ -32,45 +32,75 @@ spec:
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_HOST
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_HOST
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_PORT
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_PORT
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_USERNAME
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_USERNAME
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_USERNAME
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_USERNAME
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_PASSWORD
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_CONNECTIONPOOLSIZE
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RO_CONNECTIONPOOLSIZE
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_CONNECTIONPOOLSIZE
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_CONNECTIONPOOLSIZE
           - name: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_SSLMODE
             valueFrom:
               secretKeyRef:
-                name: demoserver-connectionmanager-postgres
+                name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_POSTGRES_SSLMODE
+          - name: DEMOSERVER_CONNECTIONMANAGER_VAULT_HOST
+            valueFrom:
+              secretKeyRef:
+                name: demoserver-connectionmanager
+                key: DEMOSERVER_CONNECTIONMANAGER_VAULT_HOST
+          - name: DEMOSERVER_CONNECTIONMANAGER_VAULT_PORT
+            valueFrom:
+              secretKeyRef:
+                name: demoserver-connectionmanager
+                key: DEMOSERVER_CONNECTIONMANAGER_VAULT_PORT
+          - name: DEMOSERVER_CONNECTIONMANAGER_VAULT_ROLE_ID
+            valueFrom:
+              secretKeyRef:
+                name: demoserver-connectionmanager
+                key: DEMOSERVER_CONNECTIONMANAGER_VAULT_ROLE_ID
+          - name: DEMOSERVER_CONNECTIONMANAGER_VAULT_SECRET_ID
+            valueFrom:
+              secretKeyRef:
+                name: demoserver-connectionmanager
+                key: DEMOSERVER_CONNECTIONMANAGER_VAULT_SECRET_ID
+          - name: DEMOSERVER_CONNECTIONMANAGER_VAULT_TLSSKIPVERIFY
+            valueFrom:
+              secretKeyRef:
+                name: demoserver-connectionmanager
+                key: DEMOSERVER_CONNECTIONMANAGER_VAULT_TLSSKIPVERIFY
+          - name: DEMOSERVER_CONNECTIONMANAGER_VAULT_HTTPS
+            valueFrom:
+              secretKeyRef:
+                name: demoserver-connectionmanager
+                key: DEMOSERVER_CONNECTIONMANAGER_VAULT_HTTPS

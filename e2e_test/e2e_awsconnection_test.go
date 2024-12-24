@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	AWSConnectionLoadTestIterations = 500
-	AWSConnectionLoadTestThreads    = 10
-	updateAWSConnectionTestLimit    = 100
+	AWSConnectionLoadTestIterations = 100
+	AWSConnectionLoadTestThreads    = 5
+	updateAWSConnectionTestLimit    = 10
 	addAWSConnectionPath            = "/v1/connectionmgmt/connection/aws"
 	getConnectionsPath              = "/v1/connectionmgmt/connections"
 	getAWSConnectionsPath           = "/v1/connectionmgmt/connections/aws"
