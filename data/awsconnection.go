@@ -15,27 +15,39 @@ import (
 // AWSConnectionPostWrapper represents AWSConnection attributes for POST request body schema.
 // swagger:model
 type AWSConnectionPostWrapper struct {
-	ConnectionPostWrapper
+	Connection ConnectionPostWrapper `json:"connection" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 
 	// AccessKey for AWS Account
 	// required: true
-	AccessKey string `json:"accesskey" validate:"required"`
+	AccessKey string `json:"accesskey" validate:"required" gorm:"-"`
 
 	// SecretAccessKey for AWS Account
 	// required: true
-	SecretAccessKey string `json:"secretaccesskey" validate:"required"`
+	SecretAccessKey string `json:"secretaccesskey" validate:"required" gorm:"-"`
 
-	// Region for AWS Account.
-	// required: true
-	Region string `json:"region" validate:"required"`
-
-	// DefaultLeaseTTL: Default life span of dynamically created AWS IAM user that will be used to start and stop the demo on AWS.
-	// required: true
-	DefaultLeaseTTL int `json:"default_lease_ttl"`
-
-	// MaxLeaseTTL: Max life span for dynamically created AWS IAM user that will be used to start and stop the demo on AWS.
+	// DefaultRegion for AWS Account
 	// required: false
-	MaxLeaseTTL int `json:"max_lease_ttl"`
+	DefaultRegion string `json:"default_region" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	DefaultLeaseTTL string `json:"default_lease_ttl" gorm:"-"`
+
+	// DefaultRegion for AWS Account
+	// required: false
+	MaxLeaseTTL string `json:"max_lease_ttl" gorm:"-"`
+
+	// RoleName RoleName for AWS Account
+	// required: true
+	RoleName string `json:"role_name" validate:"required" gorm:"-"`
+
+	// CredentialType CredentialType for AWS Account Role
+	// required: true
+	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user" gorm:"-"`
+
+	// PolicyARNs PolicyARNs for AWS Account
+	// required: true
+	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
 }
 
 // AWSConnectionPatchWrapper represents AWSConnection attributes for PATCH request body schema.
@@ -154,6 +166,55 @@ type AWSConnectionResponseWrapper struct {
 	// PolicyARNs PolicyARNs for AWS Account
 	// required: true
 	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
+}
+
+// Response schema for DELETE - DeleteAWSConnection
+// swagger:model
+type DeleteAWSConnectionResponse struct {
+	// Descriptive human readable HTTP status of delete operation.
+	// in: status
+	Status string `json:"status"`
+
+	// HTTP status code for delete operation.
+	// in: statusCode
+	StatusCode int `json:"statusCode"`
+}
+
+// Response schema for GET - TestAWSConnection
+// swagger:model
+type TestAWSConnectionResponse struct {
+	// connectionid for AWSConnection which was tested.
+	// in: id
+	ID string `json:"id"`
+
+	// test status descriptive human readable message.
+	// in: test_status
+	TestStatus string `json:"testStatus"`
+
+	// test_status_code. 1 = connectivity test successful. 0 = connectivity test failed.
+	// in: test_status_code
+	TestStatusCode int `json:"testStatusCode"`
+}
+
+// AWSConnectionsResponse represents AWS Connection attributes which are returned in response of GET on connections/aws endpoint.
+//
+// swagger:model
+type AWSConnectionsResponse struct {
+	// Number of skipped resources
+	// required: true
+	Skip int `json:"skip"`
+
+	// Limit applied on resources returned
+	// required: true
+	Limit int `json:"limit"`
+
+	// Total number of resources returned
+	// required: true
+	Total int `json:"total"`
+
+	// Connection resource objects
+	// required: true
+	AWSConnections []AWSConnectionResponseWrapper `json:"awsconnections"`
 }
 
 type Connections []*AWSConnection

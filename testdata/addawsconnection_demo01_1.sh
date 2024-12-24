@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export VAULT_ADDR="https://127.0.0.1:8200"
+
 ACCESS_KEY=$(vault kv get -tls-skip-verify -mount="kv" "DEMOSERVER\AWS_DEMO01_TEST01" | grep 'access_key' | awk '{print $2}')
 SECRET_KEY=$(vault kv get -tls-skip-verify -mount="kv" "DEMOSERVER\AWS_DEMO01_TEST01" | grep 'secret_key' | awk '{print $2}')
 

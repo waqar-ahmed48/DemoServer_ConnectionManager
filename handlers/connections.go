@@ -21,13 +21,6 @@ type ConnectionHandler struct {
 	connections_list_limit int
 }
 
-type ConnectionsResponse struct {
-	Skip        int               `json:"skip"`
-	Limit       int               `json:"limit"`
-	Total       int               `json:"total"`
-	Connections []data.Connection `json:"connections"`
-}
-
 func NewConnectionsHandler(cfg *configuration.Config, l *slog.Logger, pd *datalayer.PostgresDataSource) (*ConnectionHandler, error) {
 	var c ConnectionHandler
 
@@ -108,7 +101,7 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 		limit = h.cfg.DataLayer.MaxResults
 	}
 
-	var response ConnectionsResponse
+	var response data.ConnectionsResponse
 
 	result := h.pd.RODB().Limit(limit).Offset(skip).Find(&response.Connections)
 

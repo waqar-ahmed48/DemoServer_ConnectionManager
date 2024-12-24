@@ -2,6 +2,9 @@
 
 export VAULT_ADDR="https://127.0.0.1:8200"
 
+DEMO01_ACCESS_KEY=$(vault kv get -tls-skip-verify -mount="kv" "DEMOSERVER\AWS_DEMO01_TEST01" | grep 'access_key' | awk '{print $2}')
+DEMO01_SECRET_ACCESS_KEY=$(vault kv get -tls-skip-verify -mount="kv" "DEMOSERVER\AWS_DEMO01_TEST01" | grep 'secret_key' | awk '{print $2}')
+
 if [ -z "$DEMO01_ACCESS_KEY" ]; then
   echo Environment Variable DEMO01_ACCESS_KEY is not set. Abort!!
   echo DEMO01_ACCESS_KEY: $DEMO01_ACCESS_KEY

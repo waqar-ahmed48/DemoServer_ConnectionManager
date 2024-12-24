@@ -19,43 +19,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// Response schema for DELETE - DeleteAWSConnection
-// swagger:model
-type DeleteAWSConnectionResponse struct {
-	// Descriptive human readable HTTP status of delete operation.
-	// in: status
-	Status string `json:"status"`
-
-	// HTTP status code for delete operation.
-	// in: statusCode
-	StatusCode int `json:"statusCode"`
-}
-
-// Response schema for GET - TestAWSConnection
-// swagger:model
-type TestAWSConnectionResponse struct {
-	// connectionid for AWSConnection which was tested.
-	// in: id
-	ID string `json:"id"`
-
-	// test status descriptive human readable message.
-	// in: test_status
-	TestStatus string `json:"testStatus"`
-
-	// test_status_code. 1 = connectivity test successful. 0 = connectivity test failed.
-	// in: test_status_code
-	TestStatusCode int `json:"testStatusCode"`
-}
-
 type KeyAWSConnectionRecord struct{}
 type KeyAWSConnectionPatchParamsRecord struct{}
-
-type AWSConnectionsResponse struct {
-	Skip           int                                 `json:"skip"`
-	Limit          int                                 `json:"limit"`
-	Total          int                                 `json:"total"`
-	AWSConnections []data.AWSConnectionResponseWrapper `json:"awsconnections"`
-}
 
 type AWSConnectionHandler struct {
 	l                      *slog.Logger
@@ -146,12 +111,14 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 		limit = h.cfg.DataLayer.MaxResults
 	}
 
-	var response AWSConnectionsResponse
+	var response data.AWSConnectionsResponse
 
 	var conns []data.AWSConnection
 
 	result := h.pd.RODB().
-		Preload("Connection").     // Preloads the Connection struct
+		Preload("Connection"). // Preloads the Connection struct
+		Limit(limit).
+		Offset(skip).
 		Order("connections.name"). // Orders by the name in the Connection table
 		Joins("left join connections on connections.id = aws_connections.connection_id").
 		Find(&conns) // Finds all AWSConnection entries
@@ -420,7 +387,7 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 	connectionid := vars["connectionid"]
 	var connection data.AWSConnection
 
-	var response TestAWSConnectionResponse
+	var response data.TestAWSConnectionResponse
 
 	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
@@ -772,7 +739,7 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
-	var response DeleteAWSConnectionResponse
+	var response data.DeleteAWSConnectionResponse
 	response.StatusCode = http.StatusNoContent
 	response.Status = http.StatusText(response.StatusCode)
 
@@ -896,26 +863,31 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 
 	c := r.Context().Value(KeyAWSConnectionRecord{}).(*data.AWSConnection)
 
-	err := h.vh.AddAWSSecretsEngine(c)
-	if err != nil {
-		helper.LogError(cl, helper.ErrorVaultAWSEngineFailed, err)
+	c.Connection.ConnectionType = data.AWSConnectionType
+
+	// Begin a transaction
+	tx := h.pd.RWDB().Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, tx.Error)
 
 		helper.ReturnErrorWithAdditionalInfo(
 			cl,
 			http.StatusInternalServerError,
-			helper.ErrorVaultAWSEngineFailed,
+			helper.ErrorDatastoreSaveFailed,
 			requestid,
 			r,
 			&w,
-			err)
+			tx.Error)
 		return
 	}
 
-	c.Connection.ConnectionType = data.AWSConnectionType
-
-	result := h.pd.RWDB().Create(&c.Connection)
+	result := tx.Create(&c.Connection)
 
 	if result.Error != nil {
+		tx.Rollback()
+
 		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error)
 
 		helper.ReturnErrorWithAdditionalInfo(
@@ -929,9 +901,11 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	result = h.pd.RWDB().Create(&c)
+	result = tx.Create(&c)
 
 	if result.Error != nil {
+		tx.Rollback()
+
 		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error)
 
 		helper.ReturnErrorWithAdditionalInfo(
@@ -946,6 +920,8 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	}
 
 	if result.RowsAffected != 1 {
+		tx.Rollback()
+
 		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, helper.ErrNone)
 
 		helper.ReturnError(
@@ -956,6 +932,39 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 			r,
 			&w)
 		return
+	}
+
+	err := h.vh.AddAWSSecretsEngine(c)
+	if err != nil {
+		tx.Rollback()
+
+		helper.LogError(cl, helper.ErrorVaultAWSEngineFailed, err)
+
+		helper.ReturnErrorWithAdditionalInfo(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorVaultAWSEngineFailed,
+			requestid,
+			r,
+			&w,
+			err)
+		return
+	} else {
+		err = tx.Commit().Error
+
+		if err != nil {
+			helper.LogError(cl, helper.ErrorDatastoreSaveFailed, err)
+
+			helper.ReturnErrorWithAdditionalInfo(
+				cl,
+				http.StatusInternalServerError,
+				helper.ErrorDatastoreSaveFailed,
+				requestid,
+				r,
+				&w,
+				tx.Error)
+			return
+		}
 	}
 
 	var c_wrapper data.AWSConnectionResponseWrapper

@@ -3,7 +3,37 @@ package utilities
 import (
 	"errors"
 	"reflect"
+	"sync"
 )
+
+type MultiThreadedFunc func(threadId int, opsPerThread int)
+
+func CallMultiThreadedFunc(f MultiThreadedFunc, count int, threads int) {
+	var wg sync.WaitGroup
+	wg.Add(threads)
+
+	// Use a channel to signal completion of each thread
+	done := make(chan struct{})
+
+	// Divide the work among multiple threads
+	opsPerThread := count / threads
+	for i := 0; i < threads; i++ {
+		go func(threadID int) {
+			defer wg.Done()
+			f(threadID, opsPerThread)
+			done <- struct{}{}
+		}(i)
+	}
+
+	// Wait for all threads to complete
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	// Wait for the completion signal
+	<-done
+}
 
 func CopyMatchingFields(src, tgt interface{}) error {
 	srcVal := reflect.ValueOf(src)
