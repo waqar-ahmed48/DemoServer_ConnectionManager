@@ -25,7 +25,7 @@ swagger: check_install
 	echo DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT: ${DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT}
 	#generate swagger docs yaml file
 	#~/go/bin/swagger generate spec -o ./swagger.yaml --scan-models
-	#swagger generate spec -o ./swagger.yaml --scan-models
+	swagger generate spec -o ./swagger.yaml --scan-models
 
 build: swagger
 	#@echo  "Linting..."

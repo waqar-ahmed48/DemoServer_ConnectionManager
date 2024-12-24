@@ -168,7 +168,7 @@ type AWSConnectionResponseWrapper struct {
 	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
 }
 
-// Response schema for DELETE - DeleteAWSConnection
+// DeleteAWSConnectionResponse represents Response schema for DELETE - DeleteAWSConnection
 // swagger:model
 type DeleteAWSConnectionResponse struct {
 	// Descriptive human readable HTTP status of delete operation.
@@ -180,7 +180,7 @@ type DeleteAWSConnectionResponse struct {
 	StatusCode int `json:"statusCode"`
 }
 
-// Response schema for GET - TestAWSConnection
+// TestAWSConnectionResponse Response schema for GET - TestAWSConnection
 // swagger:model
 type TestAWSConnectionResponse struct {
 	// connectionid for AWSConnection which was tested.
@@ -197,7 +197,6 @@ type TestAWSConnectionResponse struct {
 }
 
 // AWSConnectionsResponse represents AWS Connection attributes which are returned in response of GET on connections/aws endpoint.
-//
 // swagger:model
 type AWSConnectionsResponse struct {
 	// Number of skipped resources

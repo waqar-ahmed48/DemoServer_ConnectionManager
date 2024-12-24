@@ -2,61 +2,70 @@ basePath: /v1/connectionmgmt
 consumes:
     - application/json
 definitions:
+    AWSConnection:
+        description: AWSConnection represents AWSConnection resource serialized by Microservice endpoints
+        x-go-package: DemoServer_ConnectionManager/data
+    AWSConnectionPatchWrapper:
+        title: AWSConnectionPatchWrapper represents AWSConnection attributes for PATCH request body schema.
+        x-go-package: DemoServer_ConnectionManager/data
+    AWSConnectionPostWrapper:
+        title: AWSConnectionPostWrapper represents AWSConnection attributes for POST request body schema.
+        x-go-package: DemoServer_ConnectionManager/data
+    AWSConnectionResponseWrapper:
+        description: AWSConnectionResponseWrapper represents limited information AWSConnection resource returned by Post, Get and List endpoints
+        x-go-package: DemoServer_ConnectionManager/data
+    AWSConnectionsResponse:
+        title: AWSConnectionsResponse represents AWS Connection attributes which are returned in response of GET on connections/aws endpoint.
+        x-go-package: DemoServer_ConnectionManager/data
     Connection:
         description: |-
             Connection represents generic Connection resource returned by Microservice endpoints
             Different types of connections (for example: AWSConnection) contains an object of
             Connection inside.
-        x-go-package: main/data
-    ConnectionWrapper:
-        description: |-
-            Connection represents generic Connection attributes which are allowed in POST or
-            PATCH schema.
-        x-go-package: main/data
+        x-go-package: DemoServer_ConnectionManager/data
+    ConnectionPatchWrapper:
+        title: Connection represents generic Connection attributes which are allowed in PATCH request.
+        x-go-package: DemoServer_ConnectionManager/data
+    ConnectionPostWrapper:
+        title: Connection represents generic Connection attributes which are allowed in POST request.
+        x-go-package: DemoServer_ConnectionManager/data
+    ConnectionsResponse:
+        title: ConnectionsResponse represents generic Connection attributes which are returned in response of GET on connections endpoint.
+        x-go-package: DemoServer_ConnectionManager/data
     DeleteAWSConnectionResponse:
-        description: Response schema for DELETE - DeleteAWSConnection
-        x-go-package: main/handlers
+        description: DeleteAWSConnectionResponse represents Response schema for DELETE - DeleteAWSConnection
+        x-go-package: DemoServer_ConnectionManager/data
     ErrorResponse:
         description: |-
             ErrorResponse represents information returned by Microservice endpoints in case that was an error
             in normal execution flow.
-        x-go-package: main/helper
-    AWSConnection:
-        description: JiraConnection represents JiraConnection resource returned by Microservice endpoints
-        x-go-package: main/data
-    JiraConnectionWrapper:
-        description: |-
-            JiraConnectionWrapper represents JiraConnection attributes which are allowed in POST or
-            PATCH schema.
-        x-go-package: main/data
+        x-go-package: DemoServer_ConnectionManager/helper
     StatusResponse:
         description: Response schema for ConnectionManager Status GET
-        x-go-package: main/handlers
-    TestJiraConnectionResponse:
-        description: Response schema for GET - TestJiraConnection
-        x-go-package: main/handlers
+        x-go-package: DemoServer_ConnectionManager/handlers
+    TestAWSConnectionResponse:
+        description: TestAWSConnectionResponse Response schema for GET - TestAWSConnection
+        x-go-package: DemoServer_ConnectionManager/data
 info:
     contact:
-        email: waqar.ahmed@gmail.com
-        name: Waqar Ahmed
+        email: muhammad.w.ahmed.48@gmail.com
+        name: Muhammad Ahmed
     description: |-
-        Connection defines how and where to authenticate for RuLe. A connection can be defined for terminal actions
-        like Jira Issue Creation or EveryDollar Transaction entry, as well as extraction sources like Gmail Account for email based records,..
-        It can also be identity provider such as OpenID endpoint or LDAP or AD.
-        ConnectionManager serves as one stop shop for CRUD as well as connectivity testing capabilities for all connection types for RuLe.
+        Connection defines cloud account connection for applicaiton deployment, spin up and down.
+        ConnectionManager serves as one stop shop for CRUD as well as connectivity testing capabilities for all connection types for DemoServer.
     termsOfService: there are no TOS at this moment, use at your own risk we take no responsibility
-    title: RuLe_ConnectionManager API.
+    title: DemoServer_ConnectionManager API.
     version: 1.0.0
 paths:
     /Test:
         get:
             description: |-
-                Endpoint: GET - /v1/connectionmgmt/connection/jira/test/{connectionid}
+                Endpoint: GET - /v1/connectionmgmt/connection/aws/test/{connectionid}
 
-                Description: Test connectivity of specified JiraConnection resource.
-            operationId: TestJiraConnection
+                Description: Test connectivity of specified AWSConnection resource.
+            operationId: TestAWSConnection
             parameters:
-                - description: id for JiraConnection resource to be retrieved. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+                - description: id for AWSConnection resource to be retrieved. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
                   in: query
                   name: connectionid
                   required: true
@@ -67,9 +76,9 @@ paths:
                 "200":
                     description: Connectivity test status
                     schema:
-                        $ref: '#/definitions/TestJiraConnectionResponse'
+                        $ref: '#/definitions/TestAWSConnectionResponse'
                 "404":
-                    description: Resource not found. Resources are filtered based on connectiontype = JiraConnectionType. If connectionid of Non-JiraConnection is provided ResourceNotFound error is returned.
+                    description: Resource not found. Resources are filtered based on connectiontype = AWSConnectionType. If connectionid of Non-AWSConnection is provided ResourceNotFound error is returned.
                     schema:
                         $ref: '#/definitions/ErrorResponse'
                 "500":
@@ -80,18 +89,18 @@ paths:
                     description: unexpected error
                     schema:
                         $ref: '#/definitions/ErrorResponse'
-            summary: GET - TestJiraConnection
+            summary: Test AWS Connection
             tags:
-                - JiraConnection
-    /connection:
-        get:
+                - AWSConnection
+    /aws:
+        delete:
             description: |-
-                Endpoint: GET - /v1/connectionmgmt/connection/jira/{connectionid}
+                Endpoint: DELETE - /v1/connectionmgmt/connection/aws/{connectionid}
 
-                Description: Returns JiraConnection resource based on connectionid.
-            operationId: GetJiraConnection
+                Description: Returns AWSConnection resource based on connectionid.
+            operationId: DeleteAWSConnection
             parameters:
-                - description: id for JiraConnection resource to be retrieved. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+                - description: id for AWSConnection resource to be retrieved. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
                   in: query
                   name: connectionid
                   required: true
@@ -100,11 +109,11 @@ paths:
                 - application/json
             responses:
                 "200":
-                    description: JiraConnection resource
+                    description: Resource successfully deleted.
                     schema:
-                        $ref: '#/definitions/JiraConnection'
+                        $ref: '#/definitions/DeleteAWSConnectionResponse'
                 "404":
-                    description: Resource not found. Resources are filtered based on connectiontype = JiraConnectionType. If connectionid of Non-JiraConnection is provided ResourceNotFound error is returned.
+                    description: Resource not found.
                     schema:
                         $ref: '#/definitions/ErrorResponse'
                 "500":
@@ -115,16 +124,122 @@ paths:
                     description: unexpected error
                     schema:
                         $ref: '#/definitions/ErrorResponse'
-            summary: GET - JiraConnection
+            summary: Delete AWS Connection
             tags:
-                - JiraConnection
+                - AWSConnection
+        patch:
+            consumes:
+                - application/json
+            description: |-
+                Endpoint: PATCH - /v1/connectionmgmt/connection/aws/{connectionid}
+
+                Description: Update attributes of AWSConnection resource. Update operation resets Tested status of AWSConnection.
+            operationId: UpdateAWSConnection
+            parameters:
+                - description: id for AWSConnection resource to be retrieved. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+                  in: query
+                  name: connectionid
+                  required: true
+                  type: string
+                - description: JSON string defining AWSConnection resource. Change of connectiontype and ID attributes is not allowed.
+                  in: body
+                  name: Body
+                  required: true
+                  schema:
+                    $ref: '#/definitions/AWSConnectionPatchWrapper'
+            produces:
+                - application/json
+            responses:
+                "200":
+                    description: AWSConnection resource after updates.
+                    schema:
+                        $ref: '#/definitions/AWSConnection'
+                "400":
+                    description: Bad request or parameters
+                    schema:
+                        $ref: '#/definitions/ErrorResponse'
+                default:
+                    description: unexpected error
+                    schema:
+                        $ref: '#/definitions/ErrorResponse'
+            summary: Update AWS Connection
+            tags:
+                - AWSConnection
+        post:
+            consumes:
+                - application/json
+            description: |-
+                Endpoint: POST - /v1/connectionmgmt/connection/aws
+
+                Description: Create new AWSConnection resource.
+            operationId: AddAWSConnection
+            parameters:
+                - description: JSON string defining AWSConnection resource
+                  in: body
+                  name: Body
+                  required: true
+                  schema:
+                    $ref: '#/definitions/AWSConnectionPostWrapper'
+            produces:
+                - application/json
+            responses:
+                "200":
+                    description: AWSConnection resource just created.
+                    schema:
+                        $ref: '#/definitions/AWSConnection'
+                "500":
+                    description: Internal server error
+                    schema:
+                        $ref: '#/definitions/ErrorResponse'
+                default:
+                    description: unexpected error
+                    schema:
+                        $ref: '#/definitions/ErrorResponse'
+            summary: New AWS Connection
+            tags:
+                - AWSConnection
+    /connection:
+        get:
+            description: |-
+                Endpoint: GET - /v1/connectionmgmt/connection/aws/{connectionid}
+
+                Description: Returns AWSConnection resource based on connectionid.
+            operationId: GetAWSConnection
+            parameters:
+                - description: id for AWSConnection resource to be retrieved. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+                  in: query
+                  name: connectionid
+                  required: true
+                  type: string
+            produces:
+                - application/json
+            responses:
+                "200":
+                    description: AWSConnection resource
+                    schema:
+                        $ref: '#/definitions/AWSConnection'
+                "404":
+                    description: Resource not found. Resources are filtered based on connectiontype = AWSConnectionType. If connectionid of Non-AWSConnection is provided ResourceNotFound error is returned.
+                    schema:
+                        $ref: '#/definitions/ErrorResponse'
+                "500":
+                    description: Internal server error
+                    schema:
+                        $ref: '#/definitions/ErrorResponse'
+                default:
+                    description: unexpected error
+                    schema:
+                        $ref: '#/definitions/ErrorResponse'
+            summary: Retrieve AWS Connection
+            tags:
+                - AWSConnection
     /connections:
         get:
             description: |-
                 Endpoint: GET - /v1/connectionmgmt/connections
 
                 Description: Returns list of generic connections resources. It is useful to list all connections
-                currently in ConnectionManager. Generic Connection resourse does not have specific details
+                currently in ConnectionManager. Generic Connection resource does not have specific details
                 and attributes of specialized connection types. It only tracks general information about
                 connection including its type.
             operationId: GetConnections
@@ -143,10 +258,10 @@ paths:
                 - application/json
             responses:
                 "200":
-                    description: List of JiraConnection resources
+                    description: List of AWSConnection resources
                     schema:
                         items:
-                            $ref: '#/definitions/JiraConnection'
+                            $ref: '#/definitions/AWSConnection'
                         type: array
                 "400":
                     description: Issues with parameters or their value
@@ -160,18 +275,18 @@ paths:
                     description: unexpected error
                     schema:
                         $ref: '#/definitions/ErrorResponse'
-            summary: GET - Connections
+            summary: List Connections
             tags:
                 - Connection
-    /connections/jira:
+    /connections/aws:
         get:
             description: |-
-                Endpoint: GET - /v1/connectionmgmt/connections/jira
+                Endpoint: GET - /v1/connectionmgmt/connections/aws
 
-                Description: Returns list of JiraConnection resources. Each JiraConnection resource
-                contains generic underlying generic Connection resource as well as JiraConnection
+                Description: Returns list of AWSConnection resources. Each AWSConnection resource
+                contains underlying generic Connection resource as well as AWSConnection
                 specific attributes.
-            operationId: GetJiraConnections
+            operationId: GetAWSConnections
             parameters:
                 - description: maximum number of results to return.
                   format: int32
@@ -187,10 +302,10 @@ paths:
                 - application/json
             responses:
                 "200":
-                    description: List of JiraConnection resources
+                    description: List of AWSConnection resources
                     schema:
                         items:
-                            $ref: '#/definitions/JiraConnection'
+                            $ref: '#/definitions/AWSConnection'
                         type: array
                 "400":
                     description: Issues with parameters or their value
@@ -204,115 +319,9 @@ paths:
                     description: unexpected error
                     schema:
                         $ref: '#/definitions/ErrorResponse'
-            summary: GET - JiraConnections
+            summary: List AWS Connections
             tags:
-                - JiraConnection
-    /jira:
-        delete:
-            description: |-
-                Endpoint: DELETE - /v1/connectionmgmt/connection/jira/{connectionid}
-
-                Description: Returns JiraConnection resource based on connectionid.
-            operationId: DeleteJiraConnection
-            parameters:
-                - description: id for JiraConnection resource to be retrieved. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-                  in: query
-                  name: connectionid
-                  required: true
-                  type: string
-            produces:
-                - application/json
-            responses:
-                "200":
-                    description: Resource successfully deleted.
-                    schema:
-                        $ref: '#/definitions/DeleteJiraConnectionResponse'
-                "404":
-                    description: Resource not found.
-                    schema:
-                        $ref: '#/definitions/ErrorResponse'
-                "500":
-                    description: Internal server error
-                    schema:
-                        $ref: '#/definitions/ErrorResponse'
-                default:
-                    description: unexpected error
-                    schema:
-                        $ref: '#/definitions/ErrorResponse'
-            summary: DELETE - JiraConnection
-            tags:
-                - JiraConnection
-        patch:
-            consumes:
-                - application/json
-            description: |-
-                Endpoint: PATCH - /v1/connectionmgmt/connection/jira/{connectionid}
-
-                Description: Update attributes of JiraConnection resource. Update operation resets Tested status of JiraConnection and connection is not used by active rules anymore.
-            operationId: UpdateJiraConnection
-            parameters:
-                - description: id for JiraConnection resource to be retrieved. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-                  in: query
-                  name: connectionid
-                  required: true
-                  type: string
-                - description: JSON string defining JiraConnection resource. Change of connectiontype and ID attributes is not allowed.
-                  in: body
-                  name: Body
-                  required: true
-                  schema:
-                    $ref: '#/definitions/JiraConnectionWrapper'
-            produces:
-                - application/json
-            responses:
-                "200":
-                    description: JiraConnection resource after updates.
-                    schema:
-                        $ref: '#/definitions/JiraConnection'
-                "500":
-                    description: Internal server error
-                    schema:
-                        $ref: '#/definitions/ErrorResponse'
-                default:
-                    description: unexpected error
-                    schema:
-                        $ref: '#/definitions/ErrorResponse'
-            summary: PATCH - JiraConnection
-            tags:
-                - JiraConnection
-        post:
-            consumes:
-                - application/json
-            description: |-
-                Endpoint: GET - /v1/connectionmgmt/connection/jira
-
-                Description: Create new JiraConnection resource.
-            operationId: AddJiraConnection
-            parameters:
-                - description: JSON string defining JiraConnection resource
-                  in: body
-                  name: Body
-                  required: true
-                  schema:
-                    $ref: '#/definitions/JiraConnectionWrapper'
-            produces:
-                - application/json
-            responses:
-                "200":
-                    description: JiraConnection resource just created.
-                    schema:
-                        $ref: '#/definitions/JiraConnection'
-                "500":
-                    description: Internal server error
-                    schema:
-                        $ref: '#/definitions/ErrorResponse'
-                default:
-                    description: unexpected error
-                    schema:
-                        $ref: '#/definitions/ErrorResponse'
-            summary: POST - AddJiraConnection
-            tags:
-                - JiraConnection
+                - AWSConnection
     /status:
         get:
             description: |-

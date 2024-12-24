@@ -45,7 +45,7 @@ func NewAWSConnectionHandler(cfg *configuration.Config, l *slog.Logger, pd *data
 func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.Request) {
 
 	// swagger:operation GET /connections/aws AWSConnection GetAWSConnections
-	// GET - AWSConnections
+	// List AWS Connections
 	//
 	// Endpoint: GET - /v1/connectionmgmt/connections/aws
 	//
@@ -248,7 +248,7 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionsGet(next http.Hand
 func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.Request) {
 
 	// swagger:operation GET /connection AWSConnection GetAWSConnection
-	// GET - AWSConnection
+	// Retrieve AWS Connection
 	//
 	// Endpoint: GET - /v1/connectionmgmt/connection/aws/{connectionid}
 	//
@@ -346,7 +346,7 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.Request) {
 
 	// swagger:operation GET /Test AWSConnection TestAWSConnection
-	// GET - TestAWSConnection
+	// Test AWS Connection
 	//
 	// Endpoint: GET - /v1/connectionmgmt/connection/aws/test/{connectionid}
 	//
@@ -468,7 +468,7 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *http.Request) {
 
 	// swagger:operation PATCH /aws AWSConnection UpdateAWSConnection
-	// PATCH - AWSConnection
+	// Update AWS Connection
 	//
 	// Endpoint: PATCH - /v1/connectionmgmt/connection/aws/{connectionid}
 	//
@@ -490,7 +490,7 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	//   description: JSON string defining AWSConnection resource. Change of connectiontype and ID attributes is not allowed.
 	//   required: true
 	//   schema:
-	//     "$ref": "#/definitions/AWSConnectionWrapper"
+	//     "$ref": "#/definitions/AWSConnectionPatchWrapper"
 	// responses:
 	//   '200':
 	//     description: AWSConnection resource after updates.
@@ -638,7 +638,7 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *http.Request) {
 
 	// swagger:operation DELETE /aws AWSConnection DeleteAWSConnection
-	// DELETE - AWSConnection
+	// Delete AWS Connection
 	//
 	// Endpoint: DELETE - /v1/connectionmgmt/connection/aws/{connectionid}
 	//
@@ -657,7 +657,7 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 	//   '200':
 	//     description: Resource successfully deleted.
 	//     schema:
-	//         "$ref": "#/definitions/AWSAWSConnectionResponse"
+	//         "$ref": "#/definitions/DeleteAWSConnectionResponse"
 	//   '404':
 	//     description: Resource not found.
 	//     schema:
@@ -825,9 +825,9 @@ func (h *AWSConnectionHandler) updateAWSConnection(c *data.AWSConnection) error 
 func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.Request) {
 
 	// swagger:operation POST /aws AWSConnection AddAWSConnection
-	// POST - AddAWSConnection
+	// New AWS Connection
 	//
-	// Endpoint: GET - /v1/connectionmgmt/connection/aws
+	// Endpoint: POST - /v1/connectionmgmt/connection/aws
 	//
 	// Description: Create new AWSConnection resource.
 	//
@@ -842,7 +842,7 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	//   description: JSON string defining AWSConnection resource
 	//   required: true
 	//   schema:
-	//     "$ref": "#/definitions/AWSConnectionWrapper"
+	//     "$ref": "#/definitions/AWSConnectionPostWrapper"
 	// responses:
 	//   '200':
 	//     description: AWSConnection resource just created.
