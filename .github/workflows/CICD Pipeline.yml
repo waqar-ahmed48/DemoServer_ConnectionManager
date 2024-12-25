@@ -105,3 +105,16 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           tags: latest
+    - name: go-test-coverage
+      uses: vladopajic/go-test-coverage@v2
+      with:
+        profile: cover.out
+        local-prefix: github.com/org/project
+        threshold-total: 50
+
+        ## when token is not specified (value '') this feature is turned off
+        ## in this example badge is created and committed only for main branch
+        git-token: ${{ github.ref_name == 'main' && secrets.GITHUB_TOKEN || '' }}
+        ## name of branch where badges are stored
+        ## ideally this should be orphan branch (see below how to create this branch)
+        git-branch: badges 
