@@ -26,6 +26,7 @@ swagger: check_install
 	swagger generate spec -o ./swagger.yaml --scan-models
 
 build: swagger
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	@echo  "Linting..."
 	golangci-lint cache clean
 	golangci-lint run ./... --config=./lint/.golangci.yml
