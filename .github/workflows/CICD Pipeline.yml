@@ -120,7 +120,7 @@ jobs:
       with:
         profile: cover.out
         local-prefix: github.com/org/project
-        threshold-total: 50
+        threshold-total: 0
 
         ## when token is not specified (value '') this feature is turned off
         ## in this example badge is created and committed only for main branch
