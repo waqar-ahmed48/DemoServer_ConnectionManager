@@ -105,6 +105,15 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           tags: latest
+    - name: Run tests with coverage
+      run: go test -mod=mod -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -coverprofile=cover.out
+    - name: Verify coverage file
+      run: ls -l cover.out
+    - name: Upload coverage file
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage
+        path: cover.out
     - name: go-test-coverage
       uses: vladopajic/go-test-coverage@v2
       with:
