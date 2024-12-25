@@ -27,6 +27,7 @@ swagger: check_install
 
 build: swagger
 	@echo  "Linting..."
+	golangci-lint cache clean
 	golangci-lint run ./... --config=./lint/.golangci.yml
 #	golangci-lint run --skip-dirs='(e2e_test)' --config=./lint/.golangci.yml
 	
