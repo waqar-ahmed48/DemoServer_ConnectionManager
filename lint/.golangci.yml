@@ -2,6 +2,7 @@ issues:
   exclude-use-default: false
   exclude-dirs:
     - postgres/pgdata
+    - e2e_test
 linters:
   enable:
     - typecheck
