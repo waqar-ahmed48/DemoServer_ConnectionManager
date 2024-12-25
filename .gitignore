@@ -3,3 +3,4 @@
 *redis-data
 .dockerenv
 DemoServer_ConnectionManager
+cover.out
