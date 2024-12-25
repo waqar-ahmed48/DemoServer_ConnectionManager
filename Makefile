@@ -128,7 +128,7 @@ testk8s: runk8s
 	#test all postive test cases
 	#go test -mod=mod -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > TestResults-Positive.json || true
 	go clean -testcache
-	go test -mod=mod -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
+	go test -mod=mod -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...  -coverprofile=cover.out
 
 	#bring DB down so before initiating PostgresDown Negative test cases
 	helm delete my-postgres-release -n demoserver --wait
@@ -171,7 +171,7 @@ teststandalone: runcoverage
 	#test all postive test cases
 	#go test -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -json > ./e2e_test/coverage_reports/TestResults-Positive.json || true
 	go clean -testcache
-	go test -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./...
+	go test -timeout 300s -skip TestEndtoEndSuite/TestNegative_PostgresDown_ ./... -coverprofile=cover.out
 
 	#bring postgres down so before initiating PostgresDown Negative test cases
 	docker-compose -f ./postgres/docker-compose.yml down
