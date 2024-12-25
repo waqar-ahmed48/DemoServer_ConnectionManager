@@ -12,6 +12,7 @@ on:
 jobs:
 
   build:
+    name: CICD Pipeline
     runs-on: ubuntu-latest
     env:
       DEMOSERVER_CONNECTIONMANAGER_POSTGRES_HOST: ${{ secrets.DEMOSERVER_CONNECTIONMANAGER_POSTGRES_HOST }}
