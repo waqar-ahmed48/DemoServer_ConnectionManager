@@ -74,7 +74,8 @@ func (vh *VaultHandler) GetToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check for HTTP errors
 	if resp.StatusCode != http.StatusOK {
@@ -151,7 +152,8 @@ func (vh *VaultHandler) getAWSSecretsEngineConfig(token string, path string, r *
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check if the response status code is OK (200)
 	if resp.StatusCode != http.StatusOK {
@@ -189,7 +191,7 @@ func (vh *VaultHandler) getAWSSecretsEngineLease(token string, path string, r *v
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check if the response status code is OK (200)
 	if resp.StatusCode != http.StatusOK {
@@ -228,7 +230,7 @@ func (vh *VaultHandler) getAWSSecretsEngineRole(token string, path string, r *va
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check if the response status code is OK (200)
 	if resp.StatusCode != http.StatusOK {
@@ -266,7 +268,7 @@ func (vh *VaultHandler) getAWSSecretsEngineRoleName(token string, path string, r
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check if the response status code is OK (200)
 	if resp.StatusCode != http.StatusOK {
@@ -307,7 +309,7 @@ func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role str
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check if the response status code is OK (200)
 	if resp.StatusCode != http.StatusOK {
@@ -462,7 +464,7 @@ func (vh *VaultHandler) enableAWSSecretsEngine(token string, path string) error 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
 		return helper.ErrVaultFailToEnableAWSSecretsEngine
@@ -493,7 +495,7 @@ func (vh *VaultHandler) disableAWSSecretsEngine(token string, path string) error
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
 		return helper.ErrVaultFailToDisableAWSSecretsEngine
@@ -525,39 +527,7 @@ func (vh *VaultHandler) configureAWSRootCredentials(token string, path string, a
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNoContent {
-		return helper.ErrVaultFailToConfigureAWSSecretsEngine
-	}
-
-	return nil
-}
-
-func (vh *VaultHandler) updateAWSRootCredentials(token string, path string, accessKey string, secretKey string, defaultRegion string) error {
-	url := fmt.Sprintf("%s/v1/%s/config/root", vh.vaultAddress, path)
-	data := map[string]interface{}{
-		"access_key": accessKey,
-		"secret_key": secretKey,
-		"region":     defaultRegion,
-	}
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-Vault-Token", token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := vh.hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
 		return helper.ErrVaultFailToConfigureAWSSecretsEngine
@@ -589,7 +559,7 @@ func (vh *VaultHandler) configureAWSSecretsEngine(token string, path string, def
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
 		return helper.ErrVaultFailToConfigureAWSSecretsEngine
@@ -621,40 +591,7 @@ func (vh *VaultHandler) configureAWSIAMRole(token string, path string, roleName 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to configure IAM role: %s", string(body))
-	}
-
-	return nil
-}
-
-func (vh *VaultHandler) updateAWSIAMRole(token string, path string, roleName string, policyARNs []string, credentialType string) error {
-	url := fmt.Sprintf("%s/v1/%s/roles/%s", vh.vaultAddress, path, roleName)
-
-	data := map[string]interface{}{
-		"policy_arns":     policyARNs,
-		"credential_type": credentialType,
-	}
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-Vault-Token", token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := vh.hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
@@ -674,7 +611,7 @@ func (vh *VaultHandler) Ping() error {
 		return err
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check the HTTP status code
 	switch resp.StatusCode {
