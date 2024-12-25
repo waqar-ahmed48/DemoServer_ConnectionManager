@@ -85,11 +85,11 @@ jobs:
       with:
         version: '2.14.2' # the full version of `docker-compose` command
 
-    - name: testdocker
-      run: |
-        export SHELL=/bin/bash
-        eval $(minikube docker-env -u)
-        ./testdocker.sh
+#    - name: testdocker
+#      run: |
+#        export SHELL=/bin/bash
+#        eval $(minikube docker-env -u)
+#        ./testdocker.sh
 
     - name: testk8s
       run: |

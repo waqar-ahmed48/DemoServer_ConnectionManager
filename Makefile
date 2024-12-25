@@ -8,8 +8,6 @@ else
 .DEFAULT_GOAL := build
 endif
 
-# troubleshooting attempt 1
-
 check_install:
 	#@echo  "go mod..."
 	#go mod vendor
