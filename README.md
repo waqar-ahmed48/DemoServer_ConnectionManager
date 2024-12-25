@@ -1,3 +1,5 @@
+[![CI/CD Pipeline](https://github.com/waqar-ahmed48/DemoServer_ConnectionManager/actions/workflows/CICD%20Pipeline.yml/badge.svg)](https://github.com/waqar-ahmed48/DemoServer_ConnectionManager/actions/workflows/CICD%20Pipeline.yml)
+
 ## How to Build
 
 - Just build: make
