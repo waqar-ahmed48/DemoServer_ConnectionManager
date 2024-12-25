@@ -103,3 +103,4 @@ jobs:
           name: waqarahmed48/demoserver_connectionmanager
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+          tags: latest
