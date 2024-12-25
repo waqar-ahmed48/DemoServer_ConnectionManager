@@ -1,11 +1,9 @@
-#MINIKUBE_IP := $(shell minikube ip)
-
 ifeq ($(config), testdocker)
 .DEFAULT_GOAL := testdocker
 else ifeq ($(config), testk8s)
 .DEFAULT_GOAL := testk8s
-else ifeq ($(config), testcoverage)
-.DEFAULT_GOAL := testcoverage
+else ifeq ($(config), teststandalone)
+.DEFAULT_GOAL := teststandalone
 else
 .DEFAULT_GOAL := build
 endif
@@ -28,8 +26,9 @@ swagger: check_install
 	swagger generate spec -o ./swagger.yaml --scan-models
 
 build: swagger
-	#@echo  "Linting..."
-	#golangci-lint run ./... --config=./lint/.golangci.yml
+	@echo  "Linting..."
+	golangci-lint run ./... --config=./lint/.golangci.yml
+#	golangci-lint run --skip-dirs='(e2e_test)' --config=./lint/.golangci.yml
 	
 	@echo  "Go build app..."
 	go build -mod=mod
@@ -138,7 +137,7 @@ testk8s: runk8s
 
 endif
 
-ifeq ($(config), testcoverage)
+ifeq ($(config), teststandalone)
 runcoverage: build
 	#build intrumented
 	go build -cover
@@ -152,7 +151,7 @@ runcoverage: build
 	pkill DemoServer_ConnectionManager || true
 	docker-compose down || true
 
-testcoverage: runcoverage
+teststandalone: runcoverage
 	@echo "---------------------------------------------------------------------------"
 	@echo "------------------------------- Test Covrage ------------------------------"
 	@echo "---------------------------------------------------------------------------"

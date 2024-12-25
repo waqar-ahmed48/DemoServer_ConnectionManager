@@ -1,0 +1,22 @@
+issues:
+  exclude-use-default: false
+  exclude-dirs:
+    - postgres/pgdata
+linters:
+  enable:
+    - typecheck
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocyclo
+    - goconst
+    - goimports
+    - misspell
+    - unconvert
+    - unparam
+    - bodyclose
+    - nakedret
+    - tparallel

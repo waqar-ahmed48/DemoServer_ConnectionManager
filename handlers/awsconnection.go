@@ -160,7 +160,7 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 			}
 
 			var oRespConn data.AWSConnectionResponseWrapper
-			utilities.CopyMatchingFields(value, &oRespConn)
+			_ = utilities.CopyMatchingFields(value, &oRespConn)
 			response.AWSConnections = append(response.AWSConnections, oRespConn)
 		}
 	}
@@ -334,7 +334,7 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	}
 
 	var oRespConn data.AWSConnectionResponseWrapper
-	utilities.CopyMatchingFields(connection, &oRespConn)
+	_ = utilities.CopyMatchingFields(connection, &oRespConn)
 
 	err = json.NewEncoder(w).Encode(oRespConn)
 
@@ -560,8 +560,8 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
-	utilities.CopyMatchingFields(p.Connection, &connection.Connection)
-	utilities.CopyMatchingFields(p, &connection)
+	_ = utilities.CopyMatchingFields(p.Connection, &connection.Connection)
+	_ = utilities.CopyMatchingFields(p, &connection)
 
 	connection.Connection.ResetTestStatus()
 
@@ -625,7 +625,7 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	}
 
 	var oRespConn data.AWSConnectionResponseWrapper
-	utilities.CopyMatchingFields(connection, &oRespConn)
+	_ = utilities.CopyMatchingFields(connection, &oRespConn)
 
 	err = json.NewEncoder(w).Encode(oRespConn)
 
@@ -969,7 +969,7 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 
 	var c_wrapper data.AWSConnectionResponseWrapper
 
-	utilities.CopyMatchingFields(c, &c_wrapper)
+	_ = utilities.CopyMatchingFields(c, &c_wrapper)
 
 	err = json.NewEncoder(w).Encode(c_wrapper)
 

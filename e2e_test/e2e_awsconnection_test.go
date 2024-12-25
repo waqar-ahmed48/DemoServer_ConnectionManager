@@ -29,7 +29,9 @@ func (s *EndToEndSuite) funcAddAWSConnection_Load(threadID int, rounds int) {
 
 	strThreadID := strUnderscore + strconv.Itoa(threadID) + strUnderscore
 
-	dummy := s.funcLoadDummyAWSConnection("../testdata/aws_connection.json")
+	dummyAWSConnectionJsonPath := "../testdata/aws_connection.json"
+
+	dummy := s.funcLoadDummyAWSConnection(dummyAWSConnectionJsonPath)
 	ip, port := GetIPAndPort()
 
 	for i := 0; i < rounds; i++ {
@@ -57,16 +59,14 @@ func (s *EndToEndSuite) funcUpdateAWSConnection_Load() {
 		r, err := c.Get(prefixHTTP + ip + ":" + port + getAWSConnectionsPath + "?skip=" + strconv.Itoa(updateCount) + "&limit=" + strconv.Itoa(updateAWSConnectionTestLimit))
 
 		if err != nil {
-			fmt.Printf("Get request received error: %s\n", err.Error())
-			s.True(false)
+			s.Require().Truef(false, "Get request received error: %s\n", err.Error())
 		} else {
 			if r == nil {
-				fmt.Printf("No error but resonse object is nil.\n")
-				s.True(false)
+				s.Require().Truef(false, "No error but resonse object is nil.\n")
 			}
 		}
 
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
 		requestid := r.Header.Get("X-Request-Id")
@@ -123,7 +123,7 @@ func (s *EndToEndSuite) funcUpdateAWSConnection_Load() {
 				}
 			}
 
-			defer r.Body.Close()
+			defer func() { _ = r.Body.Close() }()
 
 			s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
 			requestid := r.Header.Get("X-Request-Id")
@@ -202,7 +202,7 @@ func (s *EndToEndSuite) funcDeleteAWSConnections_All(limit ...int) {
 			}
 		}
 
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 
 		s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %d", http.StatusOK, r.StatusCode)
 		requestid := r.Header.Get("X-Request-Id")
@@ -238,7 +238,7 @@ func (s *EndToEndSuite) funcDeleteAWSConnections_All(limit ...int) {
 			requestid := r.Header.Get("X-Request-Id")
 			s.NotEqual(requestid, "", "X-Request-ID Header not returned by endpoint. X-Request-ID received: %s", requestid)
 
-			defer r.Body.Close()
+			defer func() { _ = r.Body.Close() }()
 
 			b, err := io.ReadAll(r.Body)
 
@@ -275,7 +275,7 @@ func (s *EndToEndSuite) funcGetConnectionCount() int {
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %d", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")
@@ -310,7 +310,7 @@ func (s *EndToEndSuite) funcGetAWSConnectionCount() int {
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %d", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")
@@ -363,7 +363,7 @@ func (s *EndToEndSuite) funcGetAWSConnection_Nth(skip int) *data.AWSConnectionRe
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")
@@ -402,7 +402,7 @@ func (s *EndToEndSuite) funcGetConnection_Nth(skip int) *data.Connection {
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")
@@ -424,12 +424,19 @@ func (s *EndToEndSuite) funcGetConnection_Nth(skip int) *data.Connection {
 	}
 }
 
-func (s *EndToEndSuite) funcLoadDummyAWSConnection(filePath string) data.AWSConnectionPostWrapper {
+func (s *EndToEndSuite) funcLoadDummyAWSConnection(filePath ...string) data.AWSConnectionPostWrapper {
+
+	filePathValue := "../testdata/aws_connection.json"
+
+	if len(filePath) > 0 {
+		filePathValue = filePath[0]
+	}
+
 	var obj data.AWSConnectionPostWrapper
 
-	fileContent, err := os.ReadFile(filePath)
+	fileContent, err := os.ReadFile(filePathValue)
 	if err != nil {
-		s.True(false, "Couldnt load json file: "+filePath)
+		s.True(false, "Couldnt load json file: "+filePathValue)
 	}
 
 	err = json.Unmarshal(fileContent, &obj)
@@ -473,7 +480,7 @@ func (s *EndToEndSuite) funcAddAWSConnection(dummy data.AWSConnectionPostWrapper
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %d", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")
@@ -600,7 +607,7 @@ func (s *EndToEndSuite) TestPositive_Functional_AWSConnectionsGet_Limit() {
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")
@@ -664,7 +671,7 @@ func (s *EndToEndSuite) TestPositive_Functional_AWSConnectionsGet_SkipAndLimit()
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")
@@ -751,7 +758,7 @@ func (s *EndToEndSuite) TestPositive_Functional_ConnectionsGet_Limit() {
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")
@@ -815,7 +822,7 @@ func (s *EndToEndSuite) TestPositive_Functional_ConnectionsGet_SkipAndLimit() {
 		}
 	}
 
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
 	requestid := r.Header.Get("X-Request-Id")

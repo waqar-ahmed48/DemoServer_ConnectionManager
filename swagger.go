@@ -1,6 +1,6 @@
 // Package classification DemoServer_ConnectionManager API.
 //
-// Connection defines cloud account connection for applicaiton deployment, spin up and down.
+// Connection defines cloud account connection for application deployment, spin up and down.
 // ConnectionManager serves as one stop shop for CRUD as well as connectivity testing capabilities for all connection types for DemoServer.
 //
 // Terms Of Service:

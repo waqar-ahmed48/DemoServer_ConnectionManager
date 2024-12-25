@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -23,6 +24,11 @@ const (
 
 type EndToEndSuite struct {
 	suite.Suite
+	require.Assertions
+}
+
+func (s *EndToEndSuite) SetupSuite() {
+	s.Assertions = *require.New(s.T())
 }
 
 func TestEndtoEndSuite(t *testing.T) {

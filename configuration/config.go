@@ -78,8 +78,8 @@ func ProcessArgs(cfg interface{}) string {
 	f.Usage = func() {
 		fu()
 		envHelp, _ := cleanenv.GetDescription(cfg, nil)
-		fmt.Fprintln(f.Output())
-		fmt.Fprintln(f.Output(), envHelp)
+		_, _ = fmt.Fprintln(f.Output())
+		_, _ = fmt.Fprintln(f.Output(), envHelp)
 	}
 
 	err := f.Parse(os.Args[1:])
