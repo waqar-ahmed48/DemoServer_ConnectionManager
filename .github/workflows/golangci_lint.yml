@@ -12,6 +12,7 @@ on:
 jobs:
 
   build:
+    name: golangci_lint
     runs-on: ubuntu-latest
      
     steps:

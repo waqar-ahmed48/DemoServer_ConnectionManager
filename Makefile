@@ -7,7 +7,7 @@ else ifeq ($(config), teststandalone)
 else
 .DEFAULT_GOAL := build
 endif
-
+ 
 check_install:
 	#@echo  "go mod..."
 	#go mod vendor
@@ -61,7 +61,7 @@ testdocker: rundocker
 
 	@echo "bring up application..."
 	docker-compose up -d
-	
+
 	until curl http://${DEMOSERVER_CONNECTIONMANAGER_SERVICE_IP}:${DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT}/v1/connectionmgmt/status; do printf '.';sleep 1;done
 
 	@echo "test all postive test cases"
