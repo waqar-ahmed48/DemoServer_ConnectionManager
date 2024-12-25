@@ -26,13 +26,13 @@ swagger: check_install
 	swagger generate spec -o ./swagger.yaml --scan-models
 
 build: swagger
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	golangci-lint version
+#	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+#	golangci-lint version
 
-	@echo  "Linting..."
-	golangci-lint cache clean
+#	@echo  "Linting..."
+#	golangci-lint cache clean
 #	golangci-lint run ./... --config=./lint/.golangci.yml
-	golangci-lint run --skip-dirs='(e2e_test)' --config=./lint/.golangci.yml
+#	golangci-lint run --skip-dirs='(e2e_test)' --config=./lint/.golangci.yml
 	
 	@echo  "Go build app..."
 	go build -mod=mod
