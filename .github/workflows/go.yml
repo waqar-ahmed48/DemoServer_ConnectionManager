@@ -80,6 +80,11 @@ jobs:
     - name: Try the cluster
       run: kubectl get pods -A
 
+    - name: setup docker-compose
+      uses: KengoTODA/actions-setup-docker-compose@v1
+      with:
+        version: '2.14.2' # the full version of `docker-compose` command
+
     - name: testdocker
       run: |
         export SHELL=/bin/bash
