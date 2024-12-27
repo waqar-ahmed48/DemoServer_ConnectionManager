@@ -106,7 +106,23 @@ testk8s: runk8s
 	kubectl delete namespace vault-ns --wait || true
 	kubectl delete -n demoserver secret demoserver-connectionmanager || true
 
+	helm delete jaeger --namespace jaeger-ns || true
+	helm delete my-opentelemetry-collector --namespace jaeger-ns || true
+	kubectl delete namespace jaeger-ns --wait || true
+
 #	bring up stack
+
+	helm repo add elastic https://helm.elastic.co
+	helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
+	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+	kubectl create namespace jaeger-ns || true
+	helm install my-opentelemetry-collector open-telemetry/opentelemetry-collector --namespace jaeger-ns -f ./jaeger_helm/otel_collector_values.yaml --wait
+	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml
+
+#	helm install my-opentelemetry-collector open-telemetry/opentelemetry-collector --namespace jaeger-ns  --wait --set mode=deployment --set image.repository="otel/opentelemetry-collector-k8s" --set command.name="otelcol-k8s"
+#	helm install my-opentelemetry-collector open-telemetry/opentelemetry-collector --namespace jaeger-ns  --wait --set mode=daemonset --set image.repository="otel/opentelemetry-collector-k8s" --set command.name="otelcol-k8s"
+#	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml --dry-run > ./jaeger_helm/cli.txt
+
 	helm repo add hashicorp https://helm.releases.hashicorp.com || true
 	kubectl create namespace vault-ns || true
 	kubectl create namespace demoserver || true

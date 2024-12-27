@@ -1,0 +1,20 @@
+mode: deployment
+config:
+  exporters:
+#    logging:
+#      loglevel: debug
+    otlp:
+      endpoint: "jaeger-collector.jaeger-ns.svc.cluster.local:4317"
+      tls:
+        insecure: true
+  service:
+#    extensions: [health_check,memory_ballast]
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [otlp]
+image:
+  repository: "otel/opentelemetry-collector-k8s"
+command:
+    name: "otelcol-k8s"
