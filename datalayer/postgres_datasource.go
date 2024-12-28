@@ -1,6 +1,7 @@
 package datalayer
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"DemoServer_ConnectionManager/data"
 	"DemoServer_ConnectionManager/helper"
 
+	"go.opentelemetry.io/otel"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -126,7 +128,12 @@ func (d *PostgresDataSource) RWDB() *gorm.DB {
 	return d.rwdb
 }
 
-func (d *PostgresDataSource) Ping() error {
+func (d *PostgresDataSource) Ping(ctx context.Context) error {
+	tr := otel.Tracer(d.c.Server.PrefixMain)
+	// Start a new span for the operation
+	_, span := tr.Start(ctx, "PostgresDataSource.Ping")
+	defer span.End()
+
 	sqldb, err := d.rodb.DB()
 
 	if err != nil {

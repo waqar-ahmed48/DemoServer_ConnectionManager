@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,6 +22,8 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/gorilla/mux"
 	"github.com/ilyakaznacheev/cleanenv"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
@@ -71,6 +74,20 @@ func main() {
 		},*/
 	}
 
+	// Handle SIGINT (CTRL+C) gracefully.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	// Set up OpenTelemetry.
+	otelShutdown, err := setupOTelSDK(ctx)
+	if err != nil {
+		return
+	}
+	// Handle shutdown properly so nothing leaks.
+	defer func() {
+		err = errors.Join(err, otelShutdown(context.Background()))
+	}()
+
 	sl := slog.New(slog.NewJSONHandler(w, loggerOpts))
 
 	logAttrGroup := slog.Group(
@@ -81,6 +98,8 @@ func main() {
 	slog.SetDefault(l)
 
 	r := mux.NewRouter()
+
+	r.Use(otelmux.Middleware(cfg.Server.PrefixMain))
 
 	pd, err := datalayer.NewPostgresDataSource(&cfg, l)
 	if err != nil {
@@ -148,6 +167,8 @@ func main() {
 	docsRouter := r.Methods(http.MethodGet).Subrouter()
 	docsRouter.Handle("/docs", docs_sh)
 	docsRouter.Handle("/swagger.yaml", http.FileServer(http.Dir("./")))
+
+	handler := otelhttp.NewHandler(mux, "/")
 
 	s := http.Server{
 		Addr:         ":" + strconv.Itoa(cfg.Server.Port),
