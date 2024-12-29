@@ -135,7 +135,7 @@ testk8s: runk8s
 		--set global.postgresql.password=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
 		--set global.postgresql.repmgrPassword=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
 		--set global.pgpool.adminPassword=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
-		--set postgresql.maxConnections=1000 --wait
+		--set postgresql.maxConnections=1000 --wait --timeout 10m
 
 	helm install -n demoserver demoserver-connectionmanager demoserver_connectionmanager_helm_chart/ --wait
 
