@@ -10,6 +10,9 @@ import (
 	"DemoServer_ConnectionManager/data"
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/helper"
+	"DemoServer_ConnectionManager/utilities"
+
+	"go.opentelemetry.io/otel"
 )
 
 type KeyConnectionRecord struct{}
@@ -79,9 +82,19 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	requestid, cl := helper.PrepareContext(r, &w, h.l)
+	tr := otel.Tracer(h.cfg.Server.PrefixMain)
+	_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	defer span.End()
 
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone)
+	// Add trace context to the logger
+	traceLogger := h.l.With(
+		slog.String("trace_id", span.SpanContext().TraceID().String()),
+		slog.String("span_id", span.SpanContext().SpanID().String()),
+	)
+
+	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
+
+	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
 
 	vars := r.URL.Query()
 
@@ -106,7 +119,7 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 	result := h.pd.RODB().Limit(limit).Offset(skip).Find(&response.Connections)
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error)
+		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
 
 		helper.ReturnError(
 			cl,
@@ -114,7 +127,8 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 			helper.ErrorDatastoreRetrievalFailed,
 			requestid,
 			r,
-			&w)
+			&w,
+			span)
 		return
 	}
 
@@ -125,13 +139,24 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 	err := json.NewEncoder(w).Encode(response)
 
 	if err != nil {
-		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)
+		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
 	}
 }
 
 func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		requestid, cl := helper.PrepareContext(r, &rw, h.l)
+
+		tr := otel.Tracer(h.cfg.Server.PrefixMain)
+		ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		defer span.End()
+
+		// Add trace context to the logger
+		traceLogger := h.l.With(
+			slog.String("trace_id", span.SpanContext().TraceID().String()),
+			slog.String("span_id", span.SpanContext().SpanID().String()),
+		)
+
+		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		vars := r.URL.Query()
 
@@ -139,7 +164,7 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 		if limit_str != "" {
 			limit, err := strconv.Atoi(limit_str)
 			if err != nil {
-				helper.LogDebug(cl, helper.ErrorInvalidValueForLimit, err)
+				helper.LogDebug(cl, helper.ErrorInvalidValueForLimit, err, span)
 
 				helper.ReturnError(
 					cl,
@@ -147,12 +172,13 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 					helper.ErrorInvalidValueForLimit,
 					requestid,
 					r,
-					&rw)
+					&rw,
+					span)
 				return
 			}
 
 			if limit <= 0 {
-				helper.LogDebug(cl, helper.ErrorLimitMustBeGtZero, helper.ErrNone)
+				helper.LogDebug(cl, helper.ErrorLimitMustBeGtZero, helper.ErrNone, span)
 
 				helper.ReturnError(
 					cl,
@@ -160,7 +186,8 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 					helper.ErrorLimitMustBeGtZero,
 					requestid,
 					r,
-					&rw)
+					&rw,
+					span)
 				return
 			}
 		}
@@ -169,7 +196,7 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 		if skip_str != "" {
 			skip, err := strconv.Atoi(skip_str)
 			if err != nil {
-				helper.LogDebug(cl, helper.ErrorInvalidValueForSkip, err)
+				helper.LogDebug(cl, helper.ErrorInvalidValueForSkip, err, span)
 
 				helper.ReturnError(
 					cl,
@@ -177,12 +204,12 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 					helper.ErrorInvalidValueForSkip,
 					requestid,
 					r,
-					&rw)
+					&rw, span)
 				return
 			}
 
 			if skip < 0 {
-				helper.LogDebug(cl, helper.ErrorSkipMustBeGtZero, helper.ErrNone)
+				helper.LogDebug(cl, helper.ErrorSkipMustBeGtZero, helper.ErrNone, span)
 
 				helper.ReturnError(
 					cl,
@@ -190,10 +217,13 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 					helper.ErrorSkipMustBeGtZero,
 					requestid,
 					r,
-					&rw)
+					&rw,
+					span)
 				return
 			}
 		}
+
+		r = r.WithContext(ctx)
 
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(rw, r)

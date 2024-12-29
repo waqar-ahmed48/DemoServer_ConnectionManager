@@ -13,6 +13,8 @@ import (
 type Config struct {
 	Server struct {
 		Port                int    `yaml:"port" env:"DEMOSERVER_CONNECTIONMANAGER_SERVER_PORT"`
+		App_Name            string `yaml:"app_name" env:"DEMOSERVER_CONNECTIONMANAGER_APPNAME"`
+		Microservice_Name   string `yaml:"microservice_name" env:"DEMOSERVER_CONNECTIONMANAGER_MICROSERVICENAME"`
 		PrefixMain          string `yaml:"prefix_main" env:"DEMOSERVER_CONNECTIONMANAGER_PREFIX_MAIN"`
 		PrefixWorker        string `yaml:"prefix_worker" env:"DEMOSERVER_CONNECTIONMANAGER_PREFIX_WORKER"`
 		HTTPReadTimeout     int    `yaml:"http_read_timeout" env:"DEMOSERVER_CONNECTIONMANAGER_HTTP_READ_TIMEOUT"`
@@ -50,6 +52,13 @@ type Config struct {
 		TLSSkipVerify bool   `yaml:"tlsskipverify" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_TLSSKIPVERIFY"`
 		PathPrefix    string `yaml:"pathprefix" env:"DEMOSERVER_CONNECTIONMANAGER_VAULT_PATH_PREFIX"`
 	} `yaml:"vault"`
+
+	OTLP struct {
+		Host          string `yaml:"host" env:"DEMOSERVER_CONNECTIONMANAGER_OTLP_HOST"`
+		Port          int    `yaml:"port" env:"DEMOSERVER_CONNECTIONMANAGER_OTLP_PORT"`
+		Endpoint      string `yaml:"endpoint" env:"DEMOSERVER_CONNECTIONMANAGER_OTLP_ENDPOINT"`
+		BatchDuration int    `yaml:"batchduration" env:"DEMOSERVER_CONNECTIONMANAGER_OTLP_BATCHDURATION"`
+	} `yaml:"otlp"`
 
 	DataLayer struct {
 		NamePrefix string `yaml:"name_prefix" env:"DEMOSERVER_CONNECTIONMANAGER_DATALAYER_NAME_PREFIX"`

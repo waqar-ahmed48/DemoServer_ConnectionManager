@@ -2,11 +2,15 @@
 package helper
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -176,6 +180,12 @@ const (
 
 	//ErrorVaultDeleteFailed represents delete from vault failed.
 	ErrorVaultDeleteFailed
+
+	//ErrorOTLPTracerCreationFailed represents failure to create OTLP tracer.
+	ErrorOTLPTracerCreationFailed
+
+	//ErrorOTLPCollectorNotAvailable represents error message for OTLP Collector not available.
+	ErrorOTLPCollectorNotAvailable
 )
 
 // Error represent the details of error occurred.
@@ -306,32 +316,58 @@ func GetErrorResponseWithAdditionalInfo(status int, err ErrorTypeEnum, r *http.R
 	}
 }
 
-// LogDebug logs debug structure log message.
-func LogDebug(cl *slog.Logger, err ErrorTypeEnum, e error) {
+func LogDebug(cl *slog.Logger, err ErrorTypeEnum, e error, span trace.Span) {
 	cl.Debug(ErrorDictionary[err].Description,
 		slog.String("code", ErrorDictionary[err].Code),
 		slog.String("description", ErrorDictionary[err].Description),
 		slog.String("originalError", e.Error()))
+
+	if cl.Handler().Enabled(context.Background(), slog.LevelDebug) {
+		span.AddEvent(ErrorDictionary[err].Description, trace.WithAttributes(
+			attribute.String("level", "debug"),
+			attribute.String("code", ErrorDictionary[err].Code),
+			attribute.String("description", ErrorDictionary[err].Description),
+			attribute.String("originalError", e.Error()),
+		))
+	}
 }
 
 // LogError logs error structure log message.
-func LogError(cl *slog.Logger, err ErrorTypeEnum, e error) {
+func LogError(cl *slog.Logger, err ErrorTypeEnum, e error, span trace.Span) {
 	cl.Error(ErrorDictionary[err].Description,
 		slog.String("code", ErrorDictionary[err].Code),
 		slog.String("description", ErrorDictionary[err].Description),
 		slog.String("originalError", e.Error()))
+
+	if cl.Handler().Enabled(context.Background(), slog.LevelError) {
+		span.AddEvent(ErrorDictionary[err].Description, trace.WithAttributes(
+			attribute.String("level", "info"),
+			attribute.String("code", ErrorDictionary[err].Code),
+			attribute.String("description", ErrorDictionary[err].Description),
+			attribute.String("originalError", e.Error()),
+		))
+	}
 }
 
 // LogInfo logs info structure log message.
-func LogInfo(cl *slog.Logger, err ErrorTypeEnum, e error) {
+func LogInfo(cl *slog.Logger, err ErrorTypeEnum, e error, span trace.Span) {
 	cl.Info(ErrorDictionary[err].Description,
 		slog.String("code", ErrorDictionary[err].Code),
 		slog.String("description", ErrorDictionary[err].Description),
 		slog.String("originalError", e.Error()))
+
+	if cl.Handler().Enabled(context.Background(), slog.LevelInfo) {
+		span.AddEvent(ErrorDictionary[err].Description, trace.WithAttributes(
+			attribute.String("level", "info"),
+			attribute.String("code", ErrorDictionary[err].Code),
+			attribute.String("description", ErrorDictionary[err].Description),
+			attribute.String("originalError", e.Error()),
+		))
+	}
 }
 
 // ReturnError prepares error json to be returned to caller.
-func ReturnError(cl *slog.Logger, status int, err ErrorTypeEnum, requestid string, r *http.Request, rw *http.ResponseWriter) {
+func ReturnError(cl *slog.Logger, status int, err ErrorTypeEnum, requestid string, r *http.Request, rw *http.ResponseWriter, span trace.Span) {
 	errorResponse := GetErrorResponse(
 		status,
 		err,
@@ -343,12 +379,12 @@ func ReturnError(cl *slog.Logger, status int, err ErrorTypeEnum, requestid strin
 	e := json.NewEncoder(*rw).Encode(errorResponse)
 
 	if e != nil {
-		LogError(cl, ErrorJSONEncodingFailed, e)
+		LogError(cl, ErrorJSONEncodingFailed, e, span)
 	}
 }
 
 // ReturnErrorWithAdditionalInfo prepares error json to be returned to caller with additional context.
-func ReturnErrorWithAdditionalInfo(cl *slog.Logger, status int, err ErrorTypeEnum, requestid string, r *http.Request, rw *http.ResponseWriter, e error) {
+func ReturnErrorWithAdditionalInfo(cl *slog.Logger, status int, err ErrorTypeEnum, requestid string, r *http.Request, rw *http.ResponseWriter, e error, span trace.Span) {
 	errorResponse := GetErrorResponseWithAdditionalInfo(
 		status,
 		err,
@@ -361,6 +397,6 @@ func ReturnErrorWithAdditionalInfo(cl *slog.Logger, status int, err ErrorTypeEnu
 	e = json.NewEncoder(*rw).Encode(errorResponse)
 
 	if e != nil {
-		LogError(cl, ErrorJSONEncodingFailed, e)
+		LogError(cl, ErrorJSONEncodingFailed, e, span)
 	}
 }

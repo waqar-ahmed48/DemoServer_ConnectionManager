@@ -104,3 +104,13 @@ spec:
               secretKeyRef:
                 name: demoserver-connectionmanager
                 key: DEMOSERVER_CONNECTIONMANAGER_VAULT_HTTPS
+          - name: DEMOSERVER_CONNECTIONMANAGER_OTLP_HOST
+            valueFrom:
+              secretKeyRef:
+                name: demoserver-connectionmanager
+                key: DEMOSERVER_CONNECTIONMANAGER_OTLP_HOST
+          - name: DEMOSERVER_CONNECTIONMANAGER_OTLP_PORT
+            valueFrom:
+              secretKeyRef:
+                name: demoserver-connectionmanager
+                key: DEMOSERVER_CONNECTIONMANAGER_OTLP_PORT

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,12 +16,13 @@ import (
 	"DemoServer_ConnectionManager/configuration"
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/handlers"
-	"DemoServer_ConnectionManager/helper"
+	"DemoServer_ConnectionManager/otel"
 	"DemoServer_ConnectionManager/secretsmanager"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/gorilla/mux"
 	"github.com/ilyakaznacheev/cleanenv"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
@@ -82,6 +84,27 @@ func main() {
 
 	r := mux.NewRouter()
 
+	// Handle SIGINT (CTRL+C) gracefully.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	otlpHandler, otelShutdown, err := otel.NewOTLPHandler(ctx, &cfg, l)
+	if err != nil {
+		l.Error("OTLPHandler initialization failed. Error: " + err.Error())
+		os.Exit(2)
+	}
+
+	if otlpHandler == nil {
+		l.Error("OTLPHandler initialization failed. ")
+		os.Exit(2)
+	}
+
+	defer func() {
+		err = errors.Join(err, otelShutdown(context.Background()))
+	}()
+
+	//r.Use(otelmux.Middleware(cfg.Server.PrefixMain))
+
 	pd, err := datalayer.NewPostgresDataSource(&cfg, l)
 	if err != nil {
 		l.Error("PostgresDataSource initialization failed. Error: " + err.Error())
@@ -106,13 +129,15 @@ func main() {
 		os.Exit(2)
 	}
 
-	sh := handlers.NewStatusHandler(l, pd)
+	sh := handlers.NewStatusHandler(l, pd, &cfg)
 
 	statusRouter := r.Methods(http.MethodGet).Subrouter()
 	statusRouter.HandleFunc("/v1/connectionmgmt/status", sh.GetStatus)
+	statusRouter.Use(otelhttp.NewMiddleware("GET /status"))
 
 	cGetRouter := r.Methods(http.MethodGet).Subrouter()
 	cGetRouter.HandleFunc("/v1/connectionmgmt/connections", ch.GetConnections)
+	cGetRouter.Use(otelhttp.NewMiddleware("GET /connections"))
 	cGetRouter.Use(ch.MiddlewareValidateConnectionsGet)
 
 	jch, err := handlers.NewAWSConnectionHandler(&cfg, l, pd, vh)
@@ -123,29 +148,39 @@ func main() {
 
 	jcGetConnectionsRouter := r.Methods(http.MethodGet).Subrouter()
 	jcGetConnectionsRouter.HandleFunc("/v1/connectionmgmt/connections/aws", jch.GetAWSConnections)
+	jcGetConnectionsRouter.Use(otelhttp.NewMiddleware("GET /connections/aws"))
 	jcGetConnectionsRouter.Use(jch.MiddlewareValidateAWSConnectionsGet)
 
 	jcGetRouterWithID := r.Methods(http.MethodGet).Subrouter()
 	jcGetRouterWithID.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.GetAWSConnection)
-	jcGetRouterWithID.HandleFunc("/v1/connectionmgmt/connection/aws/test/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.TestAWSConnection)
+	jcGetRouterWithID.Use(otelhttp.NewMiddleware("GET /connection/aws"))
 	jcGetRouterWithID.Use(jch.MiddlewareValidateAWSConnection)
+
+	jcTestRouterWithID := r.Methods(http.MethodGet).Subrouter()
+	jcTestRouterWithID.HandleFunc("/v1/connectionmgmt/connection/aws/test/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.TestAWSConnection)
+	jcTestRouterWithID.Use(otelhttp.NewMiddleware("GET /connection/aws/test"))
+	jcTestRouterWithID.Use(jch.MiddlewareValidateAWSConnection)
 
 	jcPostRouter := r.Methods(http.MethodPost).Subrouter()
 	jcPostRouter.HandleFunc("/v1/connectionmgmt/connection/aws", jch.AddAWSConnection)
+	jcPostRouter.Use(otelhttp.NewMiddleware("POST /connection/aws"))
 	jcPostRouter.Use(jch.MiddlewareValidateAWSConnectionPost)
 
 	jcPatchRouter := r.Methods(http.MethodPatch).Subrouter()
 	jcPatchRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.UpdateAWSConnection)
+	jcPatchRouter.Use(otelhttp.NewMiddleware("PATCH /connection/aws"))
 	jcPatchRouter.Use(jch.MiddlewareValidateAWSConnectionUpdate)
 
 	jcDeleteRouter := r.Methods(http.MethodDelete).Subrouter()
 	jcDeleteRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.DeleteAWSConnection)
+	jcDeleteRouter.Use(otelhttp.NewMiddleware("DELETE /connection/aws"))
 	jcDeleteRouter.Use(jch.MiddlewareValidateAWSConnection)
 
 	opts := middleware.RedocOpts{SpecURL: "/swagger.yaml"}
 	docs_sh := middleware.Redoc(opts, nil)
 
 	docsRouter := r.Methods(http.MethodGet).Subrouter()
+	docsRouter.Use(otelhttp.NewMiddleware("GET /docs"))
 	docsRouter.Handle("/docs", docs_sh)
 	docsRouter.Handle("/swagger.yaml", http.FileServer(http.Dir("./")))
 
@@ -180,6 +215,6 @@ func main() {
 
 	err = s.Shutdown(tc)
 	if err != nil {
-		helper.LogError(l, helper.ErrorHTTPServerShutdownFailed, err)
+		l.Error("Connections Handler initialization failed. Error: " + err.Error())
 	}
 }

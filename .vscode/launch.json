@@ -2,6 +2,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug Go App",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "args": [], // Add command-line arguments here
+            "env": {}, // Add environment variables here
+            "cwd": "${workspaceFolder}" // Current working directory
+        },
+        {
             "name": "Debug Go Tests",
             "type": "go",
             "request": "launch",

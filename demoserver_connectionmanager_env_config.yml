@@ -1,5 +1,7 @@
 server:
   port: 5678
+  app_name: DemoServer
+  microservice_name: ConnectionManager
   prefix_main: DemoServer_ConnectionManager
   prefix_worker: DemoServer_ConnectionManager_Worker
   http_read_timeout: 300
@@ -24,12 +26,19 @@ postgres:
   sslmode: false
 vault:
   host: 127.0.0.1
-  port: -1
+  port: 8200
   roleid: foo
   secretid: bar
   https: true
   tlsskipverify: false
   pathprefix: demoserver
+otlp:
+  host: 127.0.0.1
+  port: 4318
+  endpoint: 
+  https: true
+  tlsskipverify: false
+  batchduration: 5
 datalayer:
   name_prefix: DemoServer_ConnectionManager
   max_results: 10000

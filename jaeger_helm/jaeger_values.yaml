@@ -1,0 +1,33 @@
+provisionDataStore:
+  cassandra: false
+  elasticsearch: true
+
+storage:
+  type: elasticsearch
+
+collector:
+  service:
+    otlp:
+      grpc:
+#        {}
+        name: otlp-grpc
+        port: 4317
+        # nodePort:
+      http:
+#        {}
+        name: otlp-http
+        port: 4318
+        # nodePort:
+
+hotrod:
+  enabled: true
+  # Switch from the jaeger protocol to OTLP
+  extraArgs:
+    - --otel-exporter=otlp
+#    - --jaeger-ui=http://jaeger.chart.local
+  # Set the address of the OpenTelemetry collector endpoint
+  extraEnv:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://my-opentelemetry-collector.jaeger-ns.svc.cluster.local:4318
+#      value: http://jaeger-collector.jaeger-ns.svc.cluster.local:4318
+#      value: http://my-opentelemetry-collector-opentelemetry-collector:4318

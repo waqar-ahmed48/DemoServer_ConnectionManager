@@ -50,6 +50,7 @@ rundocker: build
 	@echo  "kill any instance if already running"
 	docker-compose down || true
 	docker-compose -f ./postgres/docker-compose.yml down || true
+	docker rm -f jaeger || true
 
 testdocker: rundocker
 	@echo "---------------------------------------------------------------------------"
@@ -58,6 +59,9 @@ testdocker: rundocker
 
 	@echo "bring up postgres"
 	docker-compose -f ./postgres/docker-compose.yml up -d
+
+	@echo "bring up jaeger"
+	docker run -d --rm --name jaeger -p4318:4318 -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
 
 	@echo "bring up application..."
 	docker-compose up -d
@@ -98,7 +102,6 @@ testk8s: runk8s
 	@echo "-------------------------------- Test in K8s ------------------------------"
 	@echo "---------------------------------------------------------------------------"
 #	kill stack if already running
-#	kubectl exec vault-0 --namespace vault-ns -- vault operator seal || true
 	helm delete demoserver-connectionmanager --namespace demoserver --wait || true
 	helm delete my-postgres-release --namespace demoserver --wait || true
 	helm delete vault --namespace vault-ns --wait || true
@@ -106,7 +109,18 @@ testk8s: runk8s
 	kubectl delete namespace vault-ns --wait || true
 	kubectl delete -n demoserver secret demoserver-connectionmanager || true
 
+	helm delete jaeger --namespace jaeger-ns || true
+	helm delete my-opentelemetry-collector --namespace jaeger-ns || true
+	kubectl delete namespace jaeger-ns --wait || true
+
 #	bring up stack
+
+	helm repo add elastic https://helm.elastic.co
+	helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
+	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+	kubectl create namespace jaeger-ns || true
+	helm install my-opentelemetry-collector open-telemetry/opentelemetry-collector --namespace jaeger-ns -f ./jaeger_helm/otel_collector_values.yaml --wait
+
 	helm repo add hashicorp https://helm.releases.hashicorp.com || true
 	kubectl create namespace vault-ns || true
 	kubectl create namespace demoserver || true
@@ -122,6 +136,8 @@ testk8s: runk8s
 		--set postgresql.maxConnections=1000 --wait
 
 	helm install -n demoserver demoserver-connectionmanager demoserver_connectionmanager_helm_chart/ --wait
+
+#	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml
 
 	until curl http://${DEMOSERVER_CONNECTIONMANAGER_SERVICE_IP}:${DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT}/v1/connectionmgmt/status; do printf '.';sleep 1;done
 
@@ -142,7 +158,7 @@ testk8s: runk8s
 endif
 
 ifeq ($(config), teststandalone)
-runcoverage: build
+runstandalone: build
 	#build intrumented
 	go build -cover
 	
@@ -154,14 +170,18 @@ runcoverage: build
 	#kill any instance if already running.
 	pkill DemoServer_ConnectionManager || true
 	docker-compose down || true
+	docker rm -f jaeger || true
 
-teststandalone: runcoverage
+teststandalone: runstandalone
 	@echo "---------------------------------------------------------------------------"
-	@echo "------------------------------- Test Covrage ------------------------------"
+	@echo "------------------------------- Test Standalone ---------------------------"
 	@echo "---------------------------------------------------------------------------"
 
 	#bring up postgres
 	docker-compose -f ./postgres/docker-compose.yml up -d
+
+	@echo "bring up jaeger"
+	docker run -d --rm --name jaeger -p4318:4318 -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
 
 	#bring up application
 	GOCOVERDIR=./e2e_test/coverage_reports ./DemoServer_ConnectionManager >DemoServer_ConnectionManager.log &
