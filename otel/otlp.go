@@ -10,11 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
-	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/log"
-	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -57,7 +53,7 @@ func NewOTLPHandler(ctx context.Context, c *configuration.Config, l *slog.Logger
 	tracerProvider, err := oh.newTraceProvider()
 	if err != nil {
 		handleErr(err)
-		return
+		return nil, shutdown, err
 	}
 	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
 	otel.SetTracerProvider(tracerProvider)
@@ -115,6 +111,7 @@ func (oh *OTLPHandler) newTraceProvider() (*trace.TracerProvider, error) {
 	return traceProvider, nil
 }
 
+/*
 func (oh *OTLPHandler) newMeterProvider() (*metric.MeterProvider, error) {
 	metricExporter, err := stdoutmetric.New()
 	if err != nil {
@@ -140,3 +137,4 @@ func (oh *OTLPHandler) newLoggerProvider() (*log.LoggerProvider, error) {
 	)
 	return loggerProvider, nil
 }
+*/
