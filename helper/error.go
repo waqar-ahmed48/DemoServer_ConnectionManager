@@ -61,6 +61,12 @@ var (
 
 	//ErrVaultFailToDisableAWSSecretsEngine failed to enable Vault's AWS secrets engine
 	ErrVaultFailToDisableAWSSecretsEngine = errors.New("failed to disable Vault's AWS secrets engine")
+
+	//ErrVaultFailToConfigureAWSSecretsEngine failed to enable Vault's AWS secrets engine
+	ErrVaultFailToGenerateAWSCredentials = errors.New("failed to generate credentials")
+
+	//ErrVaultFailToRetrieveAWSEngineRoleName failed to retrieve role name from Vault's AWS secrets engine
+	ErrVaultFailToRetrieveAWSEngineRoleName = errors.New("failed to retrieve role name from AWS Secrets Engine")
 )
 
 // ErrorTypeEnum is the type enum log dictionary for microservice.
@@ -186,6 +192,12 @@ const (
 
 	//ErrorOTLPCollectorNotAvailable represents error message for OTLP Collector not available.
 	ErrorOTLPCollectorNotAvailable
+
+	//DebugAWSCredsGenerationFailed represents debug message for AWS creds generation failed.
+	DebugAWSCredsGenerationFailed
+
+	//ErrorConnectionNotTestedSuccessfully represents error message for connection being used has not been tested successfully yet.
+	ErrorConnectionNotTestedSuccessfully
 )
 
 // Error represent the details of error occurred.
@@ -201,8 +213,9 @@ var ErrorDictionary = map[ErrorTypeEnum]Error{
 	InfoDemoServerConnectionManagerStatusUP:   {"ConnectionManager_Info_000002", "UP", ""},
 	InfoDemoServerConnectionManagerStatusDOWN: {"ConnectionManager_Info_000003", "DOWN", ""},
 
-	DebugAWSConnectionTestFailed: {"ConnectionManager_Debug_000001", "AWSConnection Test Failed", ""},
-	DebugDatastoreConnectionUP:   {"ConnectionManager_Debug_000002", "Datastore connection UP", ""},
+	DebugAWSConnectionTestFailed:  {"ConnectionManager_Debug_000001", "AWSConnection Test Failed", ""},
+	DebugDatastoreConnectionUP:    {"ConnectionManager_Debug_000002", "Datastore connection UP", ""},
+	DebugAWSCredsGenerationFailed: {"ConnectionManager_Debug_000003", "AWSConnection Credentials Generation Failed", ""},
 
 	ErrorNone:                                             {"ConnectionManager_Err_000000", "No error", ""},
 	ErrorConnectionIDInvalid:                              {"ConnectionManager_Err_000001", "ConnectionID is Invalid", ""},
@@ -234,6 +247,7 @@ var ErrorDictionary = map[ErrorTypeEnum]Error{
 	ErrorVaultNotAvailable:                                {"ConnectionManager_Err_000029", "Vault connection down", ""},
 	ErrorVaultAuthenticationFailed:                        {"ConnectionManager_Err_000030", "Vault authentication failed", ""},
 	ErrorVaultTLSConfigurationFailed:                      {"ConnectionManager_Err_000031", "Vault TLS Configuration failed", ""},
+	ErrorConnectionNotTestedSuccessfully:                  {"ConnectionManager_Err_000032", "Connection has to be tested successfully before it can be used.", ""},
 }
 
 // ErrorResponse represents information returned by Microservice endpoints in case that was an error

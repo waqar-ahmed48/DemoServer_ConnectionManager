@@ -383,6 +383,120 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	}
 }
 
+func (h *AWSConnectionHandler) GenerateCredsAWSConnection(w http.ResponseWriter, r *http.Request) {
+
+	// swagger:operation GET /creds AWSConnection Generate Ephemeral Credentials
+	// Generate AWS Creds
+	//
+	// Endpoint: GET - /v1/connectionmgmt/connection/aws/creds/{connectionid}
+	//
+	// Description: Generate dynamic credentials using specified AWSConnection.
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: connectionid
+	//   in: query
+	//   description: id for AWSConnection resource to be used for dynamic credentials generation. expected to be in uuid format i.e. XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+	//   required: true
+	//   type: string
+	// responses:
+	//   '200':
+	//     description: Credentials generated successfully.
+	//     schema:
+	//         "$ref": "#/definitions/CredsAWSConnectionResponse"
+	//   '404':
+	//     description: Resource not found. Resources are filtered based on connectiontype = AWSConnectionType. If connectionid of Non-AWSConnection is provided ResourceNotFound error is returned.
+	//     schema:
+	//       "$ref": "#/definitions/ErrorResponse"
+	//   '500':
+	//     description: Internal server error
+	//     schema:
+	//       "$ref": "#/definitions/ErrorResponse"
+	//   default:
+	//     description: unexpected error
+	//     schema:
+	//       "$ref": "#/definitions/ErrorResponse"
+
+	tr := otel.Tracer(h.cfg.Server.PrefixMain)
+	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	defer span.End()
+
+	// Add trace context to the logger
+	traceLogger := h.l.With(
+		slog.String("trace_id", span.SpanContext().TraceID().String()),
+		slog.String("span_id", span.SpanContext().SpanID().String()),
+	)
+
+	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
+
+	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
+
+	vars := mux.Vars(r)
+	connectionid := vars["connectionid"]
+	var connection data.AWSConnection
+
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
+
+	if result.Error != nil {
+		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
+
+		helper.ReturnError(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorDatastoreRetrievalFailed,
+			requestid,
+			r,
+			&w,
+			span)
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone, span)
+
+		helper.ReturnError(
+			cl,
+			http.StatusNotFound,
+			helper.ErrorResourceNotFound,
+			requestid,
+			r,
+			&w,
+			span)
+		return
+	}
+
+	if connection.Connection.TestSuccessful != 1 {
+		helper.LogDebug(cl, helper.ErrorConnectionNotTestedSuccessfully, helper.ErrNone, span)
+
+		helper.ReturnError(
+			cl,
+			http.StatusInternalServerError,
+			helper.ErrorConnectionNotTestedSuccessfully,
+			requestid,
+			r,
+			&w,
+			span)
+
+		return
+	}
+
+	response, err := h.vh.GenerateCredsAWSSecretsEngine(connection.VaultPath, ctx)
+
+	if err != nil {
+		helper.LogDebug(cl, helper.DebugAWSConnectionTestFailed, err, span)
+	} else {
+		response.ConnectionID = connectionid
+	}
+
+	err = json.NewEncoder(w).Encode(&response)
+
+	if err != nil {
+		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
+	}
+}
+
 func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.Request) {
 
 	// swagger:operation GET /Test AWSConnection TestAWSConnection

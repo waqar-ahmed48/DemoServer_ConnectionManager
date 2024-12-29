@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"DemoServer_ConnectionManager/data"
+	"DemoServer_ConnectionManager/helper"
 	"DemoServer_ConnectionManager/utilities"
 	"bytes"
 	"encoding/json"
@@ -21,6 +22,8 @@ const (
 	addAWSConnectionPath            = "/v1/connectionmgmt/connection/aws"
 	getConnectionsPath              = "/v1/connectionmgmt/connections"
 	getAWSConnectionsPath           = "/v1/connectionmgmt/connections/aws"
+	testAWSConnectionsPath          = "/v1/connectionmgmt/connection/aws/test"
+	credsAWSConnectionsPath         = "/v1/connectionmgmt/connection/aws/creds"
 	deleteAWSConnectionPath         = "/v1/connectionmgmt/connection/aws"
 	updateAWSConnectionsPath        = "/v1/connectionmgmt/connection/aws"
 )
@@ -346,6 +349,124 @@ func (s *EndToEndSuite) TestPositive_AWSConnection_Load() {
 	s.Equal(awsStartCount, awsEndCount, "Start and end count of AWS Connections should match. Expected: %d, Actual: %d", awsStartCount, awsEndCount)
 }
 
+func (s *EndToEndSuite) funcTestAWSConnection(connectionid string) {
+	c := http.Client{}
+
+	ip, port := GetIPAndPort()
+
+	r, err := c.Get(prefixHTTP + ip + ":" + port + testAWSConnectionsPath + "/" + connectionid)
+
+	if err != nil {
+		fmt.Printf("Get request received error: %s\n", err.Error())
+		s.True(false)
+	} else {
+		if r == nil {
+			fmt.Printf("No error but resonse object is nil.\n")
+			s.True(false)
+		}
+	}
+
+	defer func() { _ = r.Body.Close() }()
+
+	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
+	requestid := r.Header.Get("X-Request-Id")
+	s.NotEqual(requestid, "", "X-Request-ID Header not returned by endpoint. X-Request-ID received: %s", requestid)
+
+	b, _ := io.ReadAll(r.Body)
+
+	var rc data.TestAWSConnectionResponse
+
+	err = json.Unmarshal(b, &rc)
+	if err != nil {
+		s.True(false, "Error unmarshalling response into JSON:", err)
+	}
+
+	s.NotEmpty(rc.ID, "ID empty")
+	s.Equal(rc.TestStatus, "", "Test Status comparison failed. Expected Empty String, Received: %s", rc.TestStatus)
+	s.Equal(rc.TestStatusCode, 1, "TestStatusCode comparison failed. Expected: %d, Received: %d", 1, rc.TestStatusCode)
+}
+
+func (s *EndToEndSuite) funcCredsAWSConnection_Negative(connectionid string) {
+	c := http.Client{}
+
+	ip, port := GetIPAndPort()
+
+	r, err := c.Get(prefixHTTP + ip + ":" + port + credsAWSConnectionsPath + "/" + connectionid)
+
+	if err != nil {
+		fmt.Printf("Get request received error: %s\n", err.Error())
+		s.True(false)
+	} else {
+		if r == nil {
+			fmt.Printf("No error but resonse object is nil.\n")
+			s.True(false)
+		}
+	}
+
+	defer func() { _ = r.Body.Close() }()
+
+	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
+	requestid := r.Header.Get("X-Request-Id")
+	s.NotEqual(requestid, "", "X-Request-ID Header not returned by endpoint. X-Request-ID received: %s", requestid)
+
+	b, _ := io.ReadAll(r.Body)
+
+	var rc helper.ErrorResponse
+
+	err = json.Unmarshal(b, &rc)
+	if err != nil {
+		s.True(false, "Error unmarshalling response into JSON:", err)
+	}
+
+	s.NotEmpty(rc.Timestamp, "Timestamp empty")
+	s.Equal(rc.Status, 500, "Status. Expected: %d, Received: %d", 500, rc.Status)
+	s.Equal(rc.ErrorCode, "ConnectionManager_Err_000032", "Unexpected error code. Expected: %s, Received: %s", "ConnectionManager_Err_000032", rc.ErrorCode)
+	s.NotEmpty(rc.ErrorDescription, "ErrorDescription empty")
+	s.NotEmpty(rc.Endpoint, "Endpoint empty")
+	s.NotEmpty(rc.Method, "Method empty")
+	s.NotEmpty(rc.RequestID, "RequestID empty")
+}
+
+func (s *EndToEndSuite) funcCredsAWSConnection(connectionid string) {
+	c := http.Client{}
+
+	ip, port := GetIPAndPort()
+
+	r, err := c.Get(prefixHTTP + ip + ":" + port + credsAWSConnectionsPath + "/" + connectionid)
+
+	if err != nil {
+		fmt.Printf("Get request received error: %s\n", err.Error())
+		s.True(false)
+	} else {
+		if r == nil {
+			fmt.Printf("No error but resonse object is nil.\n")
+			s.True(false)
+		}
+	}
+
+	defer func() { _ = r.Body.Close() }()
+
+	s.Equal(http.StatusOK, r.StatusCode, "HTTP Status Code comparison failed. Expected %d, Received: %", http.StatusOK, r.StatusCode)
+	requestid := r.Header.Get("X-Request-Id")
+	s.NotEqual(requestid, "", "X-Request-ID Header not returned by endpoint. X-Request-ID received: %s", requestid)
+
+	b, _ := io.ReadAll(r.Body)
+
+	var rc data.CredsAWSConnectionResponse
+
+	err = json.Unmarshal(b, &rc)
+	if err != nil {
+		s.True(false, "Error unmarshalling response into JSON:", err)
+	}
+
+	s.NotEmpty(rc.ConnectionID, "ID empty")
+	s.Equal(rc.ConnectionID, connectionid, "Unexpected ConnectionID in response. Expected: %s, Received: %s", connectionid, rc.ConnectionID)
+	s.NotEmpty(rc.LeaseID, "LeaseID empty")
+	s.NotEmpty(rc.Data.AccessKey, "AccessKey empty")
+	s.NotEmpty(rc.Data.SecretKey, "AccessKey empty")
+	s.NotEmpty(rc.Data.SessionToken, "SessionToken is not empty. It was supposed to be empty")
+}
+
 func (s *EndToEndSuite) funcGetAWSConnection_Nth(skip int) *data.AWSConnectionResponseWrapper {
 	c := http.Client{}
 
@@ -447,7 +568,7 @@ func (s *EndToEndSuite) funcLoadDummyAWSConnection(filePath ...string) data.AWSC
 	return obj
 }
 
-func (s *EndToEndSuite) funcAddAWSConnection(dummy data.AWSConnectionPostWrapper, suffix string, ip string, port string) {
+func (s *EndToEndSuite) funcAddAWSConnection(dummy data.AWSConnectionPostWrapper, suffix string, ip string, port string) string {
 	c := http.Client{}
 
 	var jc data.AWSConnectionPostWrapper
@@ -515,6 +636,8 @@ func (s *EndToEndSuite) funcAddAWSConnection(dummy data.AWSConnectionPostWrapper
 	s.Equal(rc.RoleName, jc.RoleName, "Unexpected RoleName")
 	s.Equal(rc.CredentialType, jc.CredentialType, "Unexpected CredentialType")
 	s.Equal(strings.Join(rc.PolicyARNs, "_"), strings.Join(jc.PolicyARNs, "_"), "Unexpected PolicyARNs")
+
+	return rc.ID.String()
 }
 
 func (s *EndToEndSuite) func_VerifyAWSConnection_Nth(i int, suffix string) {
@@ -575,6 +698,60 @@ func (s *EndToEndSuite) TestPositive_Functional_AWSConnectionsGet_Skip() {
 	s.funcDeleteAWSConnections_All()
 }
 
+/*
+	func (s *EndToEndSuite) TestPositive_Functional_AWSConnectionTest() {
+		threadID := 1
+		strThreadID := strUnderscore + strconv.Itoa(threadID) + strUnderscore
+
+		s.funcDeleteAWSConnections_All()
+
+		dummy := s.funcLoadDummyAWSConnection("../testdata/aws_connection.json")
+		ip, port := GetIPAndPort()
+		suffix := strThreadID + strconv.Itoa(1)
+
+		connectionid := s.funcAddAWSConnection(dummy, suffix, ip, port)
+
+		s.funcTestAWSConnection(connectionid)
+
+		s.funcDeleteAWSConnections_All()
+	}
+
+	func (s *EndToEndSuite) TestPositive_Functional_AWSConnectionCreds() {
+		threadID := 1
+		strThreadID := strUnderscore + strconv.Itoa(threadID) + strUnderscore
+
+		s.funcDeleteAWSConnections_All()
+
+		dummy := s.funcLoadDummyAWSConnection("../testdata/aws_connection.json")
+		ip, port := GetIPAndPort()
+		suffix := strThreadID + strconv.Itoa(1)
+
+		connectionid := s.funcAddAWSConnection(dummy, suffix, ip, port)
+
+		s.funcTestAWSConnection(connectionid)
+
+		s.funcCredsAWSConnection(connectionid)
+
+		s.funcDeleteAWSConnections_All()
+	}
+
+	func (s *EndToEndSuite) TestNegative_Functional_AWSConnectionCreds() {
+		threadID := 1
+		strThreadID := strUnderscore + strconv.Itoa(threadID) + strUnderscore
+
+		s.funcDeleteAWSConnections_All()
+
+		dummy := s.funcLoadDummyAWSConnection("../testdata/aws_connection.json")
+		ip, port := GetIPAndPort()
+		suffix := strThreadID + strconv.Itoa(1)
+
+		connectionid := s.funcAddAWSConnection(dummy, suffix, ip, port)
+
+		s.funcCredsAWSConnection_Negative(connectionid)
+
+		s.funcDeleteAWSConnections_All()
+	}
+*/
 func (s *EndToEndSuite) TestPositive_Functional_AWSConnectionsGet_Limit() {
 	limit := 5
 	total := limit * 2

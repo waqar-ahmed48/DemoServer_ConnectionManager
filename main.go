@@ -161,6 +161,11 @@ func main() {
 	jcTestRouterWithID.Use(otelhttp.NewMiddleware("GET /connection/aws/test"))
 	jcTestRouterWithID.Use(jch.MiddlewareValidateAWSConnection)
 
+	jcGenerateCredsRouter := r.Methods(http.MethodGet).Subrouter()
+	jcGenerateCredsRouter.HandleFunc("/v1/connectionmgmt/connection/aws/creds/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.GenerateCredsAWSConnection)
+	jcGenerateCredsRouter.Use(otelhttp.NewMiddleware("GET /connection/aws/creds"))
+	jcGenerateCredsRouter.Use(jch.MiddlewareValidateAWSConnection)
+
 	jcPostRouter := r.Methods(http.MethodPost).Subrouter()
 	jcPostRouter.HandleFunc("/v1/connectionmgmt/connection/aws", jch.AddAWSConnection)
 	jcPostRouter.Use(otelhttp.NewMiddleware("POST /connection/aws"))
