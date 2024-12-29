@@ -121,7 +121,6 @@ testk8s: runk8s
 	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 	kubectl create namespace jaeger-ns || true
 	helm install my-opentelemetry-collector open-telemetry/opentelemetry-collector --namespace jaeger-ns -f ./jaeger_helm/otel_collector_values.yaml --wait
-	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml
 
 	helm repo add hashicorp https://helm.releases.hashicorp.com || true
 	kubectl create namespace vault-ns || true
@@ -138,6 +137,8 @@ testk8s: runk8s
 		--set postgresql.maxConnections=1000 --wait --timeout 10m
 
 	helm install -n demoserver demoserver-connectionmanager demoserver_connectionmanager_helm_chart/ --wait
+
+	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml
 
 	until curl http://${DEMOSERVER_CONNECTIONMANAGER_SERVICE_IP}:${DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT}/v1/connectionmgmt/status; do printf '.';sleep 1;done
 
