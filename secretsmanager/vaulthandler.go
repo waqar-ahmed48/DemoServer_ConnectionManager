@@ -45,12 +45,13 @@ type vaultAWSConfigRolesList struct {
 	} `json:"data"`
 }
 
+/*
 type vaultAWSCred struct {
 	Data struct {
 		AccessKey string `json:"access_key"`
 		SecretKey string `json:"secret_key"`
 	} `json:"data"`
-}
+}*/
 
 func (vh *VaultHandler) GetToken(ctx context.Context) (string, error) {
 
@@ -298,7 +299,7 @@ func (vh *VaultHandler) getAWSSecretsEngineRoleName(token string, path string, r
 
 	// Check if the response status code is OK (200)
 	if resp.StatusCode != http.StatusOK {
-		return err
+		return helper.ErrVaultFailToRetrieveAWSEngineRoleName
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -315,6 +316,49 @@ func (vh *VaultHandler) getAWSSecretsEngineRoleName(token string, path string, r
 
 	r.Data.Role = rl.Data.Keys[0]
 	return err
+}
+
+func (vh *VaultHandler) generateCredsAWSSecretsEngine(token string, path string, role string, r *data.CredsAWSConnectionResponse, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
+	// Prepare the request URL
+	url := fmt.Sprintf("%s/v1/%s/creds/%s", vh.vaultAddress, path, role)
+
+	// Create the request with appropriate headers
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	// Add the Vault token in the Authorization header
+	req.Header.Add("X-Vault-Token", token)
+
+	// Send the request
+	resp, err := vh.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Check if the response status code is OK (200)
+	if resp.StatusCode != http.StatusOK {
+		return helper.ErrVaultFailToGenerateAWSCredentials
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(body, r)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role string, ctx context.Context) error {
@@ -344,7 +388,7 @@ func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role str
 
 	// Check if the response status code is OK (200)
 	if resp.StatusCode != http.StatusOK {
-		return err
+		return helper.ErrVaultFailToGenerateAWSCredentials
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -352,7 +396,7 @@ func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role str
 		return err
 	}
 
-	var cred vaultAWSCred
+	var cred data.CredsAWSConnectionResponse
 
 	err = json.Unmarshal(body, &cred)
 	if err != nil {
@@ -703,6 +747,33 @@ func (vh *VaultHandler) Ping(ctx context.Context) error {
 	default:
 		return helper.ErrVaultPingUnexpectedResponseCode
 	}
+}
+
+func (vh *VaultHandler) GenerateCredsAWSSecretsEngine(path string, ctx context.Context) (*data.CredsAWSConnectionResponse, error) {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	ctx, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
+	var credsResponse data.CredsAWSConnectionResponse
+	var awsConfig vaultAWSConfig
+
+	token, err := vh.GetToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = vh.getAWSSecretsEngineRoleName(token, path, &awsConfig, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = vh.generateCredsAWSSecretsEngine(token, path, awsConfig.Data.Role, &credsResponse, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &credsResponse, nil
 }
 
 func (vh *VaultHandler) TestAWSSecretsEngine(path string, ctx context.Context) error {

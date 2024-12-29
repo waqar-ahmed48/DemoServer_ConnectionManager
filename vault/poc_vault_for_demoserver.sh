@@ -17,7 +17,7 @@ if [ -z "$DEMO01_SECRET_ACCESS_KEY" ]; then
   exit 1
 fi
 
-VAULT_COMMAND_OUTPUT=$(vault write -tls-skip-verify auth/approle/login role_id="$DEMOSERVER_VAULT_ROLE_ID" secret_id="$DEMOSERVER_VAULT_SECRET_ID" | grep 'token ' | awk '{print $2}')
+VAULT_COMMAND_OUTPUT=$(vault write -tls-skip-verify auth/approle/login role_id="$DEMOSERVER_CONNECTIONMANAGER_VAULT_ROLE_ID" secret_id="$DEMOSERVER_CONNECTIONMANAGER_VAULT_SECRET_ID" | grep 'token ' | awk '{print $2}')
 
 # Check if version was retrieved
 if [[ -n "$VAULT_COMMAND_OUTPUT" && "$VAULT_COMMAND_OUTPUT" != "null" ]]; then
