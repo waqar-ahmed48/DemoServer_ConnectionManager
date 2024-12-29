@@ -4,7 +4,7 @@ import (
 	"DemoServer_ConnectionManager/configuration"
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/helper"
-	"context"
+	"DemoServer_ConnectionManager/utilities"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -62,7 +62,7 @@ func (eh *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 
 	// Start a trace
 	tr := otel.Tracer(eh.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(context.Background(), "GetStatus")
+	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
 	defer span.End()
 
 	// Add trace context to the logger
@@ -73,7 +73,7 @@ func (eh *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 
 	_, cl := helper.PrepareContext(r, &w, traceLogger)
 
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone)
+	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
 
 	var response StatusResponse
 	response.Status = "DOWN"
@@ -85,9 +85,9 @@ func (eh *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 		response.Status = helper.ErrorDictionary[helper.InfoDemoServerConnectionManagerStatusDOWN].Description
 		response.StatusCode = helper.ErrorDictionary[helper.InfoDemoServerConnectionManagerStatusDOWN].Code
 
-		helper.LogError(cl, helper.ErrorDatastoreNotAvailable, err)
+		helper.LogError(cl, helper.ErrorDatastoreNotAvailable, err, span)
 	} else {
-		helper.LogDebug(cl, helper.DebugDatastoreConnectionUP, helper.ErrNone)
+		helper.LogDebug(cl, helper.DebugDatastoreConnectionUP, helper.ErrNone, span)
 		response.Status = helper.ErrorDictionary[helper.InfoDemoServerConnectionManagerStatusUP].Description
 		response.StatusCode = helper.ErrorDictionary[helper.InfoDemoServerConnectionManagerStatusUP].Code
 	}
@@ -95,6 +95,6 @@ func (eh *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(response)
 
 	if err != nil {
-		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err)
+		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
 	}
 }

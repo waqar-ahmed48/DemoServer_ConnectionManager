@@ -2,6 +2,7 @@ package secretsmanager
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -13,8 +14,10 @@ import (
 	"DemoServer_ConnectionManager/configuration"
 	"DemoServer_ConnectionManager/data"
 	"DemoServer_ConnectionManager/helper"
+	"DemoServer_ConnectionManager/utilities"
 
 	_ "github.com/lib/pq"
+	"go.opentelemetry.io/otel"
 )
 
 type VaultHandler struct {
@@ -49,7 +52,11 @@ type vaultAWSCred struct {
 	} `json:"data"`
 }
 
-func (vh *VaultHandler) GetToken() (string, error) {
+func (vh *VaultHandler) GetToken(ctx context.Context) (string, error) {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
 
 	// Create the authentication payload
 	authData := map[string]string{
@@ -125,16 +132,20 @@ func NewVaultHandler(c *configuration.Config, l *slog.Logger) (*VaultHandler, er
 
 	vh := &VaultHandler{c, l, hc, vaultAddress}
 
-	err := vh.Ping()
+	err := vh.Ping(context.Background())
 	if err != nil {
-		helper.LogError(vh.l, helper.ErrorVaultNotAvailable, err)
 		return nil, err
 	}
 
 	return vh, nil
 }
 
-func (vh *VaultHandler) getAWSSecretsEngineConfig(token string, path string, r *vaultAWSConfig) error {
+func (vh *VaultHandler) getAWSSecretsEngineConfig(token string, path string, r *vaultAWSConfig, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
 	// Prepare the request URL
 	url := fmt.Sprintf("%s/v1/%s/config/root", vh.vaultAddress, path)
 
@@ -173,7 +184,12 @@ func (vh *VaultHandler) getAWSSecretsEngineConfig(token string, path string, r *
 	return err
 }
 
-func (vh *VaultHandler) getAWSSecretsEngineLease(token string, path string, r *vaultAWSConfig) error {
+func (vh *VaultHandler) getAWSSecretsEngineLease(token string, path string, r *vaultAWSConfig, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
 	// Prepare the request URL
 	url := fmt.Sprintf("%s/v1/sys/mounts/%s/tune", vh.vaultAddress, path)
 
@@ -212,7 +228,12 @@ func (vh *VaultHandler) getAWSSecretsEngineLease(token string, path string, r *v
 	return err
 }
 
-func (vh *VaultHandler) getAWSSecretsEngineRole(token string, path string, r *vaultAWSConfig) error {
+func (vh *VaultHandler) getAWSSecretsEngineRole(token string, path string, r *vaultAWSConfig, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
 	// Prepare the request URL
 	url := fmt.Sprintf("%s/v1/%s/roles/%s", vh.vaultAddress, path, r.Data.Role)
 
@@ -250,7 +271,12 @@ func (vh *VaultHandler) getAWSSecretsEngineRole(token string, path string, r *va
 	return err
 }
 
-func (vh *VaultHandler) getAWSSecretsEngineRoleName(token string, path string, r *vaultAWSConfig) error {
+func (vh *VaultHandler) getAWSSecretsEngineRoleName(token string, path string, r *vaultAWSConfig, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
 	// Prepare the request URL
 	url := fmt.Sprintf("%s/v1/%s/roles", vh.vaultAddress, path)
 
@@ -291,7 +317,12 @@ func (vh *VaultHandler) getAWSSecretsEngineRoleName(token string, path string, r
 	return err
 }
 
-func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role string) error {
+func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role string, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
 	// Prepare the request URL
 	url := fmt.Sprintf("%s/v1/%s/creds/%s", vh.vaultAddress, path, role)
 
@@ -335,31 +366,36 @@ func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role str
 	return nil
 }
 
-func (vh *VaultHandler) GetAWSSecretsEngine(c *data.AWSConnection) error {
+func (vh *VaultHandler) GetAWSSecretsEngine(c *data.AWSConnection, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	ctx, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
 	// Parse the response body into the struct
 	var awsConfig vaultAWSConfig
 
-	token, err := vh.GetToken()
+	token, err := vh.GetToken(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.getAWSSecretsEngineConfig(token, c.VaultPath, &awsConfig)
+	err = vh.getAWSSecretsEngineConfig(token, c.VaultPath, &awsConfig, ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.getAWSSecretsEngineLease(token, c.VaultPath, &awsConfig)
+	err = vh.getAWSSecretsEngineLease(token, c.VaultPath, &awsConfig, ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.getAWSSecretsEngineRoleName(token, c.VaultPath, &awsConfig)
+	err = vh.getAWSSecretsEngineRoleName(token, c.VaultPath, &awsConfig, ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.getAWSSecretsEngineRole(token, c.VaultPath, &awsConfig)
+	err = vh.getAWSSecretsEngineRole(token, c.VaultPath, &awsConfig, ctx)
 	if err != nil {
 		return err
 	}
@@ -375,52 +411,33 @@ func (vh *VaultHandler) GetAWSSecretsEngine(c *data.AWSConnection) error {
 	return nil
 }
 
-func (vh *VaultHandler) AddAWSSecretsEngine(c *data.AWSConnection) error {
-	token, err := vh.GetToken()
+func (vh *VaultHandler) AddAWSSecretsEngine(c *data.AWSConnection, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	ctx, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
+	token, err := vh.GetToken(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.enableAWSSecretsEngine(token, c.VaultPath)
+	err = vh.enableAWSSecretsEngine(token, c.VaultPath, ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.configureAWSSecretsEngine(token, c.VaultPath, c.DefaultLeaseTTL, c.MaxLeaseTTL)
+	err = vh.configureAWSSecretsEngine(token, c.VaultPath, c.DefaultLeaseTTL, c.MaxLeaseTTL, ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.configureAWSRootCredentials(token, c.VaultPath, c.AccessKey, c.SecretAccessKey, c.DefaultRegion)
+	err = vh.configureAWSRootCredentials(token, c.VaultPath, c.AccessKey, c.SecretAccessKey, c.DefaultRegion, ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.configureAWSIAMRole(token, c.VaultPath, c.RoleName, c.PolicyARNs, c.CredentialType)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (vh *VaultHandler) UpdateAWSSecretsEngine(c *data.AWSConnection) error {
-	token, err := vh.GetToken()
-	if err != nil {
-		return err
-	}
-
-	err = vh.configureAWSSecretsEngine(token, c.VaultPath, c.DefaultLeaseTTL, c.MaxLeaseTTL)
-	if err != nil {
-		return err
-	}
-
-	err = vh.configureAWSRootCredentials(token, c.VaultPath, c.AccessKey, c.SecretAccessKey, c.DefaultRegion)
-	if err != nil {
-		return err
-	}
-
-	err = vh.configureAWSIAMRole(token, c.VaultPath, c.RoleName, c.PolicyARNs, c.CredentialType)
+	err = vh.configureAWSIAMRole(token, c.VaultPath, c.RoleName, c.PolicyARNs, c.CredentialType, ctx)
 	if err != nil {
 		return err
 	}
@@ -428,13 +445,28 @@ func (vh *VaultHandler) UpdateAWSSecretsEngine(c *data.AWSConnection) error {
 	return nil
 }
 
-func (vh *VaultHandler) RemoveAWSSecretsEngine(c *data.AWSConnection) error {
-	token, err := vh.GetToken()
+func (vh *VaultHandler) UpdateAWSSecretsEngine(c *data.AWSConnection, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	ctx, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
+	token, err := vh.GetToken(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.disableAWSSecretsEngine(token, c.VaultPath)
+	err = vh.configureAWSSecretsEngine(token, c.VaultPath, c.DefaultLeaseTTL, c.MaxLeaseTTL, ctx)
+	if err != nil {
+		return err
+	}
+
+	err = vh.configureAWSRootCredentials(token, c.VaultPath, c.AccessKey, c.SecretAccessKey, c.DefaultRegion, ctx)
+	if err != nil {
+		return err
+	}
+
+	err = vh.configureAWSIAMRole(token, c.VaultPath, c.RoleName, c.PolicyARNs, c.CredentialType, ctx)
 	if err != nil {
 		return err
 	}
@@ -442,7 +474,30 @@ func (vh *VaultHandler) RemoveAWSSecretsEngine(c *data.AWSConnection) error {
 	return nil
 }
 
-func (vh *VaultHandler) enableAWSSecretsEngine(token string, path string) error {
+func (vh *VaultHandler) RemoveAWSSecretsEngine(c *data.AWSConnection, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	ctx, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
+	token, err := vh.GetToken(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = vh.disableAWSSecretsEngine(token, c.VaultPath, ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (vh *VaultHandler) enableAWSSecretsEngine(token string, path string, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
 
 	url := fmt.Sprintf("%s/v1/sys/mounts/%s", vh.vaultAddress, path)
 	data := map[string]interface{}{
@@ -473,7 +528,11 @@ func (vh *VaultHandler) enableAWSSecretsEngine(token string, path string) error 
 	return nil
 }
 
-func (vh *VaultHandler) disableAWSSecretsEngine(token string, path string) error {
+func (vh *VaultHandler) disableAWSSecretsEngine(token string, path string, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
 
 	url := fmt.Sprintf("%s/v1/sys/mounts/%s", vh.vaultAddress, path)
 	data := map[string]interface{}{
@@ -504,7 +563,12 @@ func (vh *VaultHandler) disableAWSSecretsEngine(token string, path string) error
 	return nil
 }
 
-func (vh *VaultHandler) configureAWSRootCredentials(token string, path string, accessKey string, secretKey string, defaultRegion string) error {
+func (vh *VaultHandler) configureAWSRootCredentials(token string, path string, accessKey string, secretKey string, defaultRegion string, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
 	url := fmt.Sprintf("%s/v1/%s/config/root", vh.vaultAddress, path)
 	data := map[string]interface{}{
 		"access_key": accessKey,
@@ -536,7 +600,11 @@ func (vh *VaultHandler) configureAWSRootCredentials(token string, path string, a
 	return nil
 }
 
-func (vh *VaultHandler) configureAWSSecretsEngine(token string, path string, defaultTTL string, maxTTL string) error {
+func (vh *VaultHandler) configureAWSSecretsEngine(token string, path string, defaultTTL string, maxTTL string, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
 
 	url := fmt.Sprintf("%s/v1/sys/mounts/%s/tune", vh.vaultAddress, path)
 	data := map[string]interface{}{
@@ -568,7 +636,12 @@ func (vh *VaultHandler) configureAWSSecretsEngine(token string, path string, def
 	return nil
 }
 
-func (vh *VaultHandler) configureAWSIAMRole(token string, path string, roleName string, policyARNs []string, credentialType string) error {
+func (vh *VaultHandler) configureAWSIAMRole(token string, path string, roleName string, policyARNs []string, credentialType string, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
 	url := fmt.Sprintf("%s/v1/%s/roles/%s", vh.vaultAddress, path, roleName)
 
 	data := map[string]interface{}{
@@ -601,7 +674,11 @@ func (vh *VaultHandler) configureAWSIAMRole(token string, path string, roleName 
 	return nil
 }
 
-func (vh *VaultHandler) Ping() error {
+func (vh *VaultHandler) Ping(ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
 
 	// Ping the Vault server by checking its health
 	healthCheckURL := fmt.Sprintf("%s/v1/sys/health", vh.vaultAddress)
@@ -628,21 +705,25 @@ func (vh *VaultHandler) Ping() error {
 	}
 }
 
-func (vh *VaultHandler) TestAWSSecretsEngine(path string) error {
+func (vh *VaultHandler) TestAWSSecretsEngine(path string, ctx context.Context) error {
+
+	tr := otel.Tracer(vh.c.Server.PrefixMain)
+	ctx, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
 
 	var awsConfig vaultAWSConfig
 
-	token, err := vh.GetToken()
+	token, err := vh.GetToken(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.getAWSSecretsEngineRoleName(token, path, &awsConfig)
+	err = vh.getAWSSecretsEngineRoleName(token, path, &awsConfig, ctx)
 	if err != nil {
 		return err
 	}
 
-	err = vh.testAWSSecretsEngine(token, path, awsConfig.Data.Role)
+	err = vh.testAWSSecretsEngine(token, path, awsConfig.Data.Role, ctx)
 	if err != nil {
 		return err
 	}

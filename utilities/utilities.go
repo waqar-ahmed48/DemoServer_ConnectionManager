@@ -3,10 +3,20 @@ package utilities
 import (
 	"errors"
 	"reflect"
+	"runtime"
+	"strings"
 	"sync"
 )
 
 type MultiThreadedFunc func(threadId int, opsPerThread int)
+
+func GetFunctionName() string {
+	pc, _, _, _ := runtime.Caller(1)
+	funcName := runtime.FuncForPC(pc).Name()
+	parts := strings.Split(funcName, "/")
+
+	return parts[len(parts)-1]
+}
 
 func CallMultiThreadedFunc(f MultiThreadedFunc, count int, threads int) {
 	var wg sync.WaitGroup
@@ -36,6 +46,7 @@ func CallMultiThreadedFunc(f MultiThreadedFunc, count int, threads int) {
 }
 
 func CopyMatchingFields(src, tgt interface{}) error {
+
 	srcVal := reflect.ValueOf(src)
 	tgtVal := reflect.ValueOf(tgt)
 

@@ -50,6 +50,7 @@ rundocker: build
 	@echo  "kill any instance if already running"
 	docker-compose down || true
 	docker-compose -f ./postgres/docker-compose.yml down || true
+	docker rm -f jaeger || true
 
 testdocker: rundocker
 	@echo "---------------------------------------------------------------------------"
@@ -58,6 +59,9 @@ testdocker: rundocker
 
 	@echo "bring up postgres"
 	docker-compose -f ./postgres/docker-compose.yml up -d
+
+	@echo "bring up jaeger"
+	docker run -d --rm --name jaeger -p4318:4318 -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
 
 	@echo "bring up application..."
 	docker-compose up -d
@@ -117,11 +121,7 @@ testk8s: runk8s
 	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 	kubectl create namespace jaeger-ns || true
 	helm install my-opentelemetry-collector open-telemetry/opentelemetry-collector --namespace jaeger-ns -f ./jaeger_helm/otel_collector_values.yaml --wait
-	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml
-
-#	helm install my-opentelemetry-collector open-telemetry/opentelemetry-collector --namespace jaeger-ns  --wait --set mode=deployment --set image.repository="otel/opentelemetry-collector-k8s" --set command.name="otelcol-k8s"
-#	helm install my-opentelemetry-collector open-telemetry/opentelemetry-collector --namespace jaeger-ns  --wait --set mode=daemonset --set image.repository="otel/opentelemetry-collector-k8s" --set command.name="otelcol-k8s"
-#	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml --dry-run > ./jaeger_helm/cli.txt
+	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml --wait
 
 	helm repo add hashicorp https://helm.releases.hashicorp.com || true
 	kubectl create namespace vault-ns || true
@@ -158,7 +158,7 @@ testk8s: runk8s
 endif
 
 ifeq ($(config), teststandalone)
-runcoverage: build
+runstandalone: build
 	#build intrumented
 	go build -cover
 	
@@ -170,14 +170,18 @@ runcoverage: build
 	#kill any instance if already running.
 	pkill DemoServer_ConnectionManager || true
 	docker-compose down || true
+	docker rm -f jaeger || true
 
-teststandalone: runcoverage
+teststandalone: runstandalone
 	@echo "---------------------------------------------------------------------------"
-	@echo "------------------------------- Test Covrage ------------------------------"
+	@echo "------------------------------- Test Standalone ---------------------------"
 	@echo "---------------------------------------------------------------------------"
 
 	#bring up postgres
 	docker-compose -f ./postgres/docker-compose.yml up -d
+
+	@echo "bring up jaeger"
+	docker run -d --rm --name jaeger -p4318:4318 -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
 
 	#bring up application
 	GOCOVERDIR=./e2e_test/coverage_reports ./DemoServer_ConnectionManager >DemoServer_ConnectionManager.log &

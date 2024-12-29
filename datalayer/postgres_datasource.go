@@ -9,7 +9,7 @@ import (
 
 	"DemoServer_ConnectionManager/configuration"
 	"DemoServer_ConnectionManager/data"
-	"DemoServer_ConnectionManager/helper"
+	"DemoServer_ConnectionManager/utilities"
 
 	"go.opentelemetry.io/otel"
 	"gorm.io/driver/postgres"
@@ -41,13 +41,11 @@ func NewPostgresDataSource(c *configuration.Config, l *slog.Logger) (*PostgresDa
 	db, err := sql.Open("postgres", rwDsn)
 
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreNotAvailable, err)
 		return nil, err
 	}
 
 	err = db.Ping()
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreNotAvailable, err)
 		return nil, err
 	}
 
@@ -57,13 +55,11 @@ func NewPostgresDataSource(c *configuration.Config, l *slog.Logger) (*PostgresDa
 
 	err = tx.Commit()
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreFailedToCreateDB, err)
 		return nil, err
 	}
 
 	err = db.Close()
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreConnectionCloseFailed, err)
 		return nil, err
 	}
 
@@ -71,13 +67,11 @@ func NewPostgresDataSource(c *configuration.Config, l *slog.Logger) (*PostgresDa
 
 	rwdb, err := gorm.Open(postgres.Open(rwDsn), &gorm.Config{})
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreNotAvailable, err)
 		return nil, err
 	}
 
 	sqldb, err := rwdb.DB()
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreNotAvailable, err)
 		return nil, err
 	}
 
@@ -87,19 +81,16 @@ func NewPostgresDataSource(c *configuration.Config, l *slog.Logger) (*PostgresDa
 
 	err = sqldb.Ping()
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreNotAvailable, err)
 		return nil, err
 	}
 
 	rodb, err := gorm.Open(postgres.Open(roDsn), &gorm.Config{})
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreNotAvailable, err)
 		return nil, err
 	}
 
 	sqldb, err = rodb.DB()
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreNotAvailable, err)
 		return nil, err
 	}
 
@@ -109,7 +100,6 @@ func NewPostgresDataSource(c *configuration.Config, l *slog.Logger) (*PostgresDa
 
 	err = sqldb.Ping()
 	if err != nil {
-		helper.LogError(l, helper.ErrorDatastoreNotAvailable, err)
 		return nil, err
 	}
 
@@ -130,8 +120,7 @@ func (d *PostgresDataSource) RWDB() *gorm.DB {
 
 func (d *PostgresDataSource) Ping(ctx context.Context) error {
 	tr := otel.Tracer(d.c.Server.PrefixMain)
-	// Start a new span for the operation
-	_, span := tr.Start(ctx, "PostgresDataSource.Ping")
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
 	defer span.End()
 
 	sqldb, err := d.rodb.DB()
