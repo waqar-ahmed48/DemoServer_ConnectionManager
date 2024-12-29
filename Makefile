@@ -102,7 +102,6 @@ testk8s: runk8s
 	@echo "-------------------------------- Test in K8s ------------------------------"
 	@echo "---------------------------------------------------------------------------"
 #	kill stack if already running
-#	kubectl exec vault-0 --namespace vault-ns -- vault operator seal || true
 	helm delete demoserver-connectionmanager --namespace demoserver --wait || true
 	helm delete my-postgres-release --namespace demoserver --wait || true
 	helm delete vault --namespace vault-ns --wait || true
@@ -134,11 +133,11 @@ testk8s: runk8s
 		--set global.postgresql.password=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
 		--set global.postgresql.repmgrPassword=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
 		--set global.pgpool.adminPassword=${DEMOSERVER_CONNECTIONMANAGER_POSTGRES_RW_PASSWORD} \
-		--set postgresql.maxConnections=1000 --wait --timeout 10m
+		--set postgresql.maxConnections=1000 --wait
 
 	helm install -n demoserver demoserver-connectionmanager demoserver_connectionmanager_helm_chart/ --wait
 
-	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml
+#	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml
 
 	until curl http://${DEMOSERVER_CONNECTIONMANAGER_SERVICE_IP}:${DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT}/v1/connectionmgmt/status; do printf '.';sleep 1;done
 
