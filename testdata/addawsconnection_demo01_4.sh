@@ -7,4 +7,4 @@ SECRET_KEY=$(vault kv get -tls-skip-verify -mount="kv" "DEMOSERVER\AWS_DEMO01_TE
 
 curl -X POST http://localhost:5678/v1/connectionmgmt/connection/aws \
     -H "Content-Type: application/json"  \
-    -d "{\"connection\": {\"name\": \"Demo01Account_AWS_4\",\"description\": \"Demo01Account AWS Account description_4\",\"connectiontype\": \"\"}, \"accesskey\": \"$ACCESS_KEY\", \"secretaccesskey\": \"$SECRET_KEY\", \"default_region\": \"us-east-1\", \"default_lease_ttl\": \"20s\", \"max_lease_ttl\": \"60s\", \"role_name\": \"DemoUser\", \"credential_type\": \"iam_user\", \"policy_arns\": [\"arn:aws:iam::aws:policy/AdministratorAccess\"]}" | jq
+    -d "{\"connection\": {\"name\": \"Demo01Account_AWS_4\",\"description\": \"Demo01Account AWS Account description_4\",\"connectiontype\": \"\"}, \"accesskey\": \"$ACCESS_KEY\", \"secretaccesskey\": \"$SECRET_KEY\", \"default_region\": \"us-west-2\", \"default_lease_ttl\": \"20s\", \"max_lease_ttl\": \"60s\", \"role_name\": \"DemoUser\", \"credential_type\": \"iam_user\", \"policy_arns\": [\"arn:aws:iam::aws:policy/AdministratorAccess\"]}" | jq

@@ -439,7 +439,7 @@ func (s *EndToEndSuite) funcCredsAWSConnection(connectionid string) {
 		s.True(false)
 	} else {
 		if r == nil {
-			fmt.Printf("No error but resonse object is nil.\n")
+			fmt.Printf("No error but response object is nil.\n")
 			s.True(false)
 		}
 	}
