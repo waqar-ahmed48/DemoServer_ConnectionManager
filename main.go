@@ -152,17 +152,17 @@ func main() {
 	jcGetConnectionsRouter.Use(jch.MiddlewareValidateAWSConnectionsGet)
 
 	jcGetRouterWithID := r.Methods(http.MethodGet).Subrouter()
-	jcGetRouterWithID.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.GetAWSConnection)
+	jcGetRouterWithID.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}}", jch.GetAWSConnection)
 	jcGetRouterWithID.Use(otelhttp.NewMiddleware("GET /connection/aws"))
 	jcGetRouterWithID.Use(jch.MiddlewareValidateAWSConnection)
 
 	jcTestRouterWithID := r.Methods(http.MethodGet).Subrouter()
-	jcTestRouterWithID.HandleFunc("/v1/connectionmgmt/connection/aws/test/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.TestAWSConnection)
+	jcTestRouterWithID.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}}/test", jch.TestAWSConnection)
 	jcTestRouterWithID.Use(otelhttp.NewMiddleware("GET /connection/aws/test"))
 	jcTestRouterWithID.Use(jch.MiddlewareValidateAWSConnection)
 
 	jcGenerateCredsRouter := r.Methods(http.MethodGet).Subrouter()
-	jcGenerateCredsRouter.HandleFunc("/v1/connectionmgmt/connection/aws/creds/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.GenerateCredsAWSConnection)
+	jcGenerateCredsRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}}/creds", jch.GenerateCredsAWSConnection)
 	jcGenerateCredsRouter.Use(otelhttp.NewMiddleware("GET /connection/aws/creds"))
 	jcGenerateCredsRouter.Use(jch.MiddlewareValidateAWSConnection)
 
@@ -172,12 +172,24 @@ func main() {
 	jcPostRouter.Use(jch.MiddlewareValidateAWSConnectionPost)
 
 	jcPatchRouter := r.Methods(http.MethodPatch).Subrouter()
-	jcPatchRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.UpdateAWSConnection)
+	jcPatchRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}}", jch.UpdateAWSConnection)
 	jcPatchRouter.Use(otelhttp.NewMiddleware("PATCH /connection/aws"))
 	jcPatchRouter.Use(jch.MiddlewareValidateAWSConnectionUpdate)
 
+	/*
+		jcLinkRouter := r.Methods(http.MethodPost).Subrouter()
+		jcLinkRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}}/link", jch.LinkAWSConnection)
+		jcLinkRouter.Use(otelhttp.NewMiddleware("POST /connection/aws/link"))
+		jcLinkRouter.Use(jch.MiddlewareValidateAWSConnectionLink)
+
+		jcUnlinkRouter := r.Methods(http.MethodPost).Subrouter()
+		jcUnlinkRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}}/unlink", jch.UnlinkAWSConnection)
+		jcUnlinkRouter.Use(otelhttp.NewMiddleware("POST /connection/aws/unlink"))
+		jcUnlinkRouter.Use(jch.MiddlewareValidateAWSConnectionUnlink)
+	*/
+
 	jcDeleteRouter := r.Methods(http.MethodDelete).Subrouter()
-	jcDeleteRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$}", jch.DeleteAWSConnection)
+	jcDeleteRouter.HandleFunc("/v1/connectionmgmt/connection/aws/{connectionid:[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-4[a-fA-F0-9]{3}-[8|9|aA|bB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}}", jch.DeleteAWSConnection)
 	jcDeleteRouter.Use(otelhttp.NewMiddleware("DELETE /connection/aws"))
 	jcDeleteRouter.Use(jch.MiddlewareValidateAWSConnection)
 
