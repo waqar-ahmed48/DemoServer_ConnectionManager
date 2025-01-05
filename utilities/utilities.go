@@ -48,6 +48,7 @@ func CallMultiThreadedFunc(f MultiThreadedFunc, count int, threads int) {
 	// Wait for the completion signal
 	<-done
 }
+
 func CopyMatchingFields(src, tgt interface{}) error {
 	srcVal := reflect.ValueOf(src)
 	tgtVal := reflect.ValueOf(tgt)
