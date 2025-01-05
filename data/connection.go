@@ -89,6 +89,10 @@ type Connection struct {
 	// Date and time of latest successful connectivity test
 	// required: false
 	LastSuccessfulTest string `json:"lastsuccessfultest"`
+
+	// Applications consuming the connection
+	// required: false
+	Applications []string `json:"applications" gorm:"type:json"`
 }
 
 // ConnectionsResponse represents generic Connection attributes which are returned in response of GET on connections endpoint.

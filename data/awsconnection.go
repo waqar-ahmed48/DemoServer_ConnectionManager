@@ -123,11 +123,11 @@ type AWSConnection struct {
 
 	// CredentialType CredentialType for AWS Account Role
 	// required: true
-	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user" gorm:"-"`
+	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user session_token" gorm:"-"`
 
 	// PolicyARNs PolicyARNs for AWS Account
-	// required: true
-	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
+	// required: only if credential_type is set to iam_user
+	PolicyARNs []string `json:"policy_arns" gorm:"-"`
 }
 
 // AWSConnectionResponseWrapper represents limited information AWSConnection resource returned by Post, Get and List endpoints
@@ -210,6 +210,10 @@ type CredsAWSConnectionResponse struct {
 	// LeaseDuration for generated access
 	// out: lease_duration
 	LeaseDuration int `json:"lease_duration"`
+
+	// Latency in seconds before credentials can be used with AWS
+	// out: latency
+	Latency int `json:"latency"`
 
 	Data struct {
 		// AccessKey for generated access

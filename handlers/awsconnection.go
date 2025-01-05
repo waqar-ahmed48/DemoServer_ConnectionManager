@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
@@ -135,12 +136,11 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 		Find(&conns) // Finds all AWSConnection entries
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreRetrievalFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
@@ -160,14 +160,14 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 			if err != nil {
 				helper.LogError(cl, helper.ErrorVaultLoadFailed, err, span)
 
-				helper.ReturnErrorWithAdditionalInfo(
+				helper.ReturnError(
 					cl,
 					http.StatusInternalServerError,
 					helper.ErrorVaultLoadFailed,
+					err,
 					requestid,
 					r,
 					&w,
-					err,
 					span)
 				return
 			}
@@ -206,12 +206,11 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionsGet(next http.Hand
 		if limit_str != "" {
 			limit, err := strconv.Atoi(limit_str)
 			if err != nil {
-				helper.LogDebug(cl, helper.ErrorInvalidValueForLimit, err, span)
-
 				helper.ReturnError(
 					cl,
 					http.StatusBadRequest,
 					helper.ErrorInvalidValueForLimit,
+					err,
 					requestid,
 					r,
 					&rw,
@@ -220,12 +219,11 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionsGet(next http.Hand
 			}
 
 			if limit <= 0 {
-				helper.LogDebug(cl, helper.ErrorLimitMustBeGtZero, helper.ErrNone, span)
-
 				helper.ReturnError(
 					cl,
 					http.StatusBadRequest,
 					helper.ErrorLimitMustBeGtZero,
+					helper.ErrorDictionary[helper.ErrorLimitMustBeGtZero].Error(),
 					requestid,
 					r,
 					&rw,
@@ -238,12 +236,11 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionsGet(next http.Hand
 		if skip_str != "" {
 			skip, err := strconv.Atoi(skip_str)
 			if err != nil {
-				helper.LogDebug(cl, helper.ErrorInvalidValueForSkip, err, span)
-
 				helper.ReturnError(
 					cl,
 					http.StatusBadRequest,
 					helper.ErrorInvalidValueForSkip,
+					err,
 					requestid,
 					r,
 					&rw,
@@ -252,12 +249,11 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionsGet(next http.Hand
 			}
 
 			if skip < 0 {
-				helper.LogDebug(cl, helper.ErrorSkipMustBeGtZero, helper.ErrNone, span)
-
 				helper.ReturnError(
 					cl,
 					http.StatusBadRequest,
 					helper.ErrorSkipMustBeGtZero,
+					helper.ErrorDictionary[helper.ErrorSkipMustBeGtZero].Error(),
 					requestid,
 					r,
 					&rw,
@@ -329,12 +325,11 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreRetrievalFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
@@ -343,12 +338,11 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	}
 
 	if result.RowsAffected == 0 {
-		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusNotFound,
 			helper.ErrorResourceNotFound,
+			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
 			requestid,
 			r,
 			&w,
@@ -359,16 +353,14 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	err := h.vh.GetAWSSecretsEngine(&connection, ctx)
 
 	if err != nil {
-		helper.LogError(cl, helper.ErrorVaultLoadFailed, err, span)
-
-		helper.ReturnErrorWithAdditionalInfo(
+		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorVaultLoadFailed,
+			err,
 			requestid,
 			r,
 			&w,
-			err,
 			span)
 		return
 	}
@@ -440,12 +432,11 @@ func (h *AWSConnectionHandler) GenerateCredsAWSConnection(w http.ResponseWriter,
 	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreRetrievalFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
@@ -454,12 +445,12 @@ func (h *AWSConnectionHandler) GenerateCredsAWSConnection(w http.ResponseWriter,
 	}
 
 	if result.RowsAffected == 0 {
-		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone, span)
 
 		helper.ReturnError(
 			cl,
 			http.StatusNotFound,
 			helper.ErrorResourceNotFound,
+			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
 			requestid,
 			r,
 			&w,
@@ -474,6 +465,7 @@ func (h *AWSConnectionHandler) GenerateCredsAWSConnection(w http.ResponseWriter,
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorConnectionNotTestedSuccessfully,
+			helper.ErrorDictionary[helper.ErrorConnectionNotTestedSuccessfully].Error(),
 			requestid,
 			r,
 			&w,
@@ -562,6 +554,7 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreRetrievalFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
@@ -570,12 +563,11 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 	}
 
 	if result.RowsAffected == 0 {
-		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusNotFound,
 			helper.ErrorResourceNotFound,
+			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
 			requestid,
 			r,
 			&w,
@@ -595,12 +587,11 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 	result = h.pd.RWDB().Save(&connection.Connection)
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreSaveFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
@@ -609,12 +600,11 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 	}
 
 	if result.RowsAffected != 1 {
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, helper.ErrNone, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreSaveFailed,
+			helper.ErrorDictionary[helper.ErrorDatastoreSaveFailed].Error(),
 			requestid,
 			r,
 			&w,
@@ -697,12 +687,11 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreRetrievalFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
@@ -711,12 +700,11 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	}
 
 	if result.RowsAffected == 0 {
-		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusNotFound,
 			helper.ErrorResourceNotFound,
+			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
 			requestid,
 			r,
 			&w,
@@ -724,19 +712,58 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
+	if strings.ToLower(connection.CredentialType) == "iam_user" {
+		if len(p.PolicyARNs) == 0 {
+			helper.ReturnError(
+				cl,
+				http.StatusBadRequest,
+				helper.ErrorInvalidPolicyARNs,
+				helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(),
+				requestid,
+				r,
+				&w,
+				span)
+			return
+		}
+	} else if strings.ToLower(connection.CredentialType) == "session_token" {
+		if connection.DefaultLeaseTTL != "" {
+			helper.ReturnError(
+				cl,
+				http.StatusBadRequest,
+				helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL,
+				helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL].Error(),
+				requestid,
+				r,
+				&w,
+				span)
+			return
+		}
+
+		if connection.MaxLeaseTTL != "" {
+			helper.ReturnError(
+				cl,
+				http.StatusBadRequest,
+				helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL,
+				helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL].Error(),
+				requestid,
+				r,
+				&w,
+				span)
+			return
+		}
+	}
+
 	err := h.vh.GetAWSSecretsEngine(&connection, ctx)
 
 	if err != nil {
-		helper.LogError(cl, helper.ErrorVaultLoadFailed, err, span)
-
-		helper.ReturnErrorWithAdditionalInfo(
+		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorVaultLoadFailed,
+			err,
 			requestid,
 			r,
 			&w,
-			err,
 			span)
 		return
 	}
@@ -749,12 +776,11 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	err = h.updateAWSConnection(&connection, ctx)
 
 	if err != nil {
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, err, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreSaveFailed,
+			err,
 			requestid,
 			r,
 			&w,
@@ -765,12 +791,11 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	result = h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreRetrievalFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
@@ -779,12 +804,11 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	}
 
 	if result.RowsAffected == 0 {
-		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusNotFound,
 			helper.ErrorResourceNotFound,
+			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
 			requestid,
 			r,
 			&w,
@@ -795,16 +819,14 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	err = h.vh.GetAWSSecretsEngine(&connection, ctx)
 
 	if err != nil {
-		helper.LogError(cl, helper.ErrorVaultLoadFailed, err, span)
-
-		helper.ReturnErrorWithAdditionalInfo(
+		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorVaultLoadFailed,
+			err,
 			requestid,
 			r,
 			&w,
-			err,
 			span)
 		return
 	}
@@ -879,12 +901,11 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 	connection.ID, err = uuid.Parse(connectionid)
 
 	if err != nil {
-		helper.LogDebug(cl, helper.ErrorConnectionIDInvalid, err, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusBadRequest,
 			helper.ErrorConnectionIDInvalid,
+			err,
 			requestid,
 			r,
 			&w,
@@ -895,12 +916,11 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
 
 	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreRetrievalFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
@@ -909,12 +929,11 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 	}
 
 	if result.RowsAffected == 0 {
-		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusNotFound,
 			helper.ErrorResourceNotFound,
+			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
 			requestid,
 			r,
 			&w,
@@ -931,6 +950,7 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 			cl,
 			http.StatusBadRequest,
 			helper.ErrorDatastoreDeleteFailed,
+			err,
 			requestid,
 			r,
 			&w,
@@ -1084,21 +1104,60 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 
 	c.Connection.ConnectionType = data.AWSConnectionType
 
+	if strings.ToLower(c.CredentialType) == "iam_user" {
+		if len(c.PolicyARNs) == 0 {
+			helper.ReturnError(
+				cl,
+				http.StatusBadRequest,
+				helper.ErrorInvalidPolicyARNs,
+				helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(),
+				requestid,
+				r,
+				&w,
+				span)
+			return
+		}
+	} else if strings.ToLower(c.CredentialType) == "session_token" {
+		if c.DefaultLeaseTTL != "" {
+			helper.ReturnError(
+				cl,
+				http.StatusBadRequest,
+				helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL,
+				helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL].Error(),
+				requestid,
+				r,
+				&w,
+				span)
+			return
+		}
+
+		if c.MaxLeaseTTL != "" {
+			helper.ReturnError(
+				cl,
+				http.StatusBadRequest,
+				helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL,
+				helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL].Error(),
+				requestid,
+				r,
+				&w,
+				span)
+			return
+		}
+	}
+
 	// Begin a transaction
 	tx := h.pd.RWDB().Begin()
 
 	// Check if the transaction started successfully
 	if tx.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, tx.Error, span)
-
-		helper.ReturnErrorWithAdditionalInfo(
+		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreSaveFailed,
+			tx.Error,
 			requestid,
 			r,
 			&w,
-			tx.Error,
 			span)
 		return
 	}
@@ -1108,16 +1167,14 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	if result.Error != nil {
 		tx.Rollback()
 
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error, span)
-
-		helper.ReturnErrorWithAdditionalInfo(
+		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreSaveFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
-			result.Error,
 			span)
 		return
 	}
@@ -1127,16 +1184,14 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	if result.Error != nil {
 		tx.Rollback()
 
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, result.Error, span)
-
-		helper.ReturnErrorWithAdditionalInfo(
+		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreSaveFailed,
+			result.Error,
 			requestid,
 			r,
 			&w,
-			result.Error,
 			span)
 		return
 	}
@@ -1144,12 +1199,11 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	if result.RowsAffected != 1 {
 		tx.Rollback()
 
-		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, helper.ErrNone, span)
-
 		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorDatastoreSaveFailed,
+			helper.ErrorDictionary[helper.ErrorDatastoreSaveFailed].Error(),
 			requestid,
 			r,
 			&w,
@@ -1161,32 +1215,28 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	if err != nil {
 		tx.Rollback()
 
-		helper.LogError(cl, helper.ErrorVaultAWSEngineFailed, err, span)
-
-		helper.ReturnErrorWithAdditionalInfo(
+		helper.ReturnError(
 			cl,
 			http.StatusInternalServerError,
 			helper.ErrorVaultAWSEngineFailed,
+			err,
 			requestid,
 			r,
 			&w,
-			err,
 			span)
 		return
 	} else {
 		err = tx.Commit().Error
 
 		if err != nil {
-			helper.LogError(cl, helper.ErrorDatastoreSaveFailed, err, span)
-
-			helper.ReturnErrorWithAdditionalInfo(
+			helper.ReturnError(
 				cl,
 				http.StatusInternalServerError,
 				helper.ErrorDatastoreSaveFailed,
+				err,
 				requestid,
 				r,
 				&w,
-				tx.Error,
 				span)
 			return
 		}
@@ -1224,12 +1274,11 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnection(next http.Handler)
 		connectionid := vars["connectionid"]
 
 		if len(connectionid) == 0 {
-			helper.LogDebug(cl, helper.ErrorConnectionIDInvalid, helper.ErrNone, span)
-
 			helper.ReturnError(
 				cl,
 				http.StatusBadRequest,
 				helper.ErrorConnectionIDInvalid,
+				helper.ErrorDictionary[helper.ErrorConnectionIDInvalid].Error(),
 				requestid,
 				r,
 				&rw,
@@ -1261,16 +1310,14 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Hand
 
 		err := c.FromJSON(r.Body)
 		if err != nil {
-			helper.LogDebug(cl, helper.ErrorInvalidJSONSchemaForParameter, err, span)
-
-			helper.ReturnErrorWithAdditionalInfo(
+			helper.ReturnError(
 				cl,
 				http.StatusBadRequest,
 				helper.ErrorInvalidJSONSchemaForParameter,
+				err,
 				requestid,
 				r,
 				&rw,
-				err,
 				span)
 			return
 
@@ -1278,16 +1325,14 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Hand
 
 		err = c.Validate()
 		if err != nil {
-			helper.LogDebug(cl, helper.ErrorInvalidJSONSchemaForParameter, err, span)
-
-			helper.ReturnErrorWithAdditionalInfo(
+			helper.ReturnError(
 				cl,
 				http.StatusBadRequest,
 				helper.ErrorInvalidJSONSchemaForParameter,
+				err,
 				requestid,
 				r,
 				&rw,
-				err,
 				span)
 			return
 
@@ -1295,12 +1340,11 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Hand
 
 		if c.Connection.ConnectionType != data.NoConnectionType {
 			if c.Connection.ConnectionType != data.AWSConnectionType {
-				helper.LogDebug(cl, helper.ErrorInvalidConnectionType, helper.ErrNone, span)
-
 				helper.ReturnError(
 					cl,
 					http.StatusBadRequest,
 					helper.ErrorInvalidConnectionType,
+					helper.ErrorDictionary[helper.ErrorInvalidConnectionType].Error(),
 					requestid,
 					r,
 					&rw,
@@ -1340,12 +1384,11 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionUpdate(next http.Ha
 		var p data.AWSConnectionPatchWrapper
 
 		if len(connectionid) == 0 {
-			helper.LogDebug(cl, helper.ErrorConnectionIDInvalid, helper.ErrNone, span)
-
 			helper.ReturnError(
 				cl,
 				http.StatusBadRequest,
 				helper.ErrorConnectionIDInvalid,
+				helper.ErrorDictionary[helper.ErrorConnectionIDInvalid].Error(),
 				requestid,
 				r,
 				&rw,
@@ -1355,16 +1398,14 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionUpdate(next http.Ha
 
 		err := json.NewDecoder(r.Body).Decode(&p)
 		if err != nil {
-			helper.LogDebug(cl, helper.ErrorInvalidJSONSchemaForParameter, err, span)
-
-			helper.ReturnErrorWithAdditionalInfo(
+			helper.ReturnError(
 				cl,
 				http.StatusBadRequest,
 				helper.ErrorInvalidJSONSchemaForParameter,
+				err,
 				requestid,
 				r,
 				&rw,
-				err,
 				span)
 			return
 
@@ -1372,16 +1413,14 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionUpdate(next http.Ha
 
 		err = validator.New().Struct(p)
 		if err != nil {
-			helper.LogDebug(cl, helper.ErrorInvalidJSONSchemaForParameter, err, span)
-
-			helper.ReturnErrorWithAdditionalInfo(
+			helper.ReturnError(
 				cl,
 				http.StatusBadRequest,
 				helper.ErrorInvalidJSONSchemaForParameter,
+				err,
 				requestid,
 				r,
 				&rw,
-				err,
 				span)
 			return
 

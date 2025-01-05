@@ -68,6 +68,8 @@ type Config struct {
 	AWS struct {
 		DefaultLeaseTTL int `yaml:"default_lease_ttl" env:"DEMOSERVER_CONNECTIONMANAGER_AWS_DEFAULTLEASETTL"`
 		MaxLeaseTTL     int `yaml:"max_lease_ttl" env:"DEMOSERVER_CONNECTIONMANAGER_AWS_MAXLEASETTL"`
+		IAMUserLatency  int `yaml:"iam_user_latency" env:"DEMOSERVER_CONNECTIONMANAGER_AWS_IAMUSER_LATENCY"`
+		DefaultStsTTL   int `yaml:"default_sts_ttl" env:"DEMOSERVER_CONNECTIONMANAGER_AWS_STS_TTL"`
 	} `yaml:"aws"`
 }
 
