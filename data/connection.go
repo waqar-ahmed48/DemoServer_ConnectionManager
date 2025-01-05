@@ -45,11 +45,11 @@ type ConnectionPostWrapper struct {
 type ConnectionPatchWrapper struct {
 	// User friendly name for Connection
 	// required: true
-	Name string `json:"name" validate:"required" gorm:"index;not null;unique"`
+	Name *string `json:"name,omitempty" validate:"omitempty" gorm:"index;not null;unique"`
 
 	// Description of Connection
 	// required: false
-	Description string `json:"description" gorm:"index"`
+	Description *string `json:"description,omitempty" validate:"omitempty" gorm:"index"`
 }
 
 // Connection represents generic Connection resource returned by Microservice endpoints

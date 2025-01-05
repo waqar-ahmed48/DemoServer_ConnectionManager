@@ -211,6 +211,9 @@ const (
 
 	//ErrorLinkNotFound represents application id link for connection not found
 	ErrorLinkNotFound
+
+	//ErrorJSONDecodingFailed represents error message for json decoding failed.
+	ErrorJSONDecodingFailed
 )
 
 // Error represent the details of error occurred.
@@ -269,6 +272,7 @@ var ErrorDictionary = map[ErrorTypeEnum]Error{
 	ErrorInvalidPolicyARNs:                               {"ConnectionManager_Err_000034", "invalid policy arns value", ""},
 	ErrorApplicationAlreadyLinked:                        {"ConnectionManager_Err_000035", "application id already linked to the connection", ""},
 	ErrorLinkNotFound:                                    {"ConnectionManager_Err_000036", "application id link to the connection not found", ""},
+	ErrorJSONDecodingFailed:                              {"ConnectionManager_Err_000037", "json decoding failed", ""},
 }
 
 // ErrorResponse represents information returned by Microservice endpoints in case that was an error

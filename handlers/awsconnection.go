@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-playground/validator"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel"
@@ -768,8 +767,21 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
-	_ = utilities.CopyMatchingFields(p.Connection, &connection.Connection)
-	_ = utilities.CopyMatchingFields(p, &connection)
+	if p.Connection != nil {
+		err = utilities.CopyMatchingFields(p.Connection, &connection.Connection)
+
+		if err != nil {
+			helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+			return
+		}
+	}
+
+	err = utilities.CopyMatchingFields(p, &connection)
+
+	if err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		return
+	}
 
 	connection.Connection.ResetTestStatus()
 
@@ -832,7 +844,19 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	}
 
 	var oRespConn data.AWSConnectionResponseWrapper
-	_ = utilities.CopyMatchingFields(connection, &oRespConn)
+	err = utilities.CopyMatchingFields(connection.Connection, &oRespConn.Connection)
+
+	if err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		return
+	}
+
+	err = utilities.CopyMatchingFields(connection, &oRespConn)
+
+	if err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		return
+	}
 
 	err = json.NewEncoder(w).Encode(oRespConn)
 
@@ -1396,34 +1420,19 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionUpdate(next http.Ha
 			return
 		}
 
-		err := json.NewDecoder(r.Body).Decode(&p)
+		// Decode JSON into a map
+		var payload map[string]interface{}
+		err := json.NewDecoder(r.Body).Decode(&payload)
 		if err != nil {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorInvalidJSONSchemaForParameter,
-				err,
-				requestid,
-				r,
-				&rw,
-				span)
+			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorInvalidJSONSchemaForParameter, err, requestid, r, &rw, span)
 			return
-
 		}
 
-		err = validator.New().Struct(p)
+		// Validate and wrap the payload
+		err = utilities.ValidateAndWrapPayload(payload, &p)
 		if err != nil {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorInvalidJSONSchemaForParameter,
-				err,
-				requestid,
-				r,
-				&rw,
-				span)
+			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorInvalidJSONSchemaForParameter, err, requestid, r, &rw, span)
 			return
-
 		}
 
 		// add the connection to the context
