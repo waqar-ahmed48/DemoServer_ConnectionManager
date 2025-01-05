@@ -21,6 +21,11 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
+var (
+	strIAMUser      = "iam_user"
+	strSessionToken = "session_token"
+)
+
 type VaultHandler struct {
 	c            *configuration.Config
 	l            *slog.Logger
@@ -329,9 +334,9 @@ func (vh *VaultHandler) generateCredsAWSSecretsEngine(token string, path string,
 	// Prepare the request URL
 
 	var endpoint string
-	if strings.ToLower(credential_type) == "iam_user" {
+	if strings.ToLower(credential_type) == strIAMUser {
 		endpoint = "creds"
-	} else if strings.ToLower(credential_type) == "session_token" {
+	} else if strings.ToLower(credential_type) == strSessionToken {
 		endpoint = "sts"
 	}
 

@@ -94,14 +94,14 @@ func (s *EndToEndSuite) funcUpdateAWSConnection_Load() {
 
 			var obj data.AWSConnectionPatchWrapper
 
-			obj.Connection.Name = jc.Connection.Name + suffix
-			obj.Connection.Description = jc.Connection.Description + suffix
-			obj.AccessKey = jc.AccessKey + suffix
-			obj.DefaultRegion = strDefaultRegion
-			obj.SecretAccessKey = "Dummy Secret Key Value_" + suffix
-			obj.DefaultLeaseTTL = strDefaultLeaseTTL
-			obj.MaxLeaseTTL = strMaxLeaseTTL
-			obj.CredentialType = jc.CredentialType
+			*obj.Connection.Name = jc.Connection.Name + suffix
+			*obj.Connection.Description = jc.Connection.Description + suffix
+			*obj.AccessKey = jc.AccessKey + suffix
+			*obj.DefaultRegion = strDefaultRegion
+			*obj.SecretAccessKey = "Dummy Secret Key Value_" + suffix
+			*obj.DefaultLeaseTTL = strDefaultLeaseTTL
+			*obj.MaxLeaseTTL = strMaxLeaseTTL
+			*obj.CredentialType = jc.CredentialType
 			obj.PolicyARNs = append(jc.PolicyARNs, "arn:aws:iam::aws:policy/AmazonS3FullAccess")
 
 			jsonData, err := json.Marshal(obj)
