@@ -137,7 +137,7 @@ testk8s: runk8s
 
 	helm install -n demoserver demoserver-connectionmanager demoserver_connectionmanager_helm_chart/ --wait
 
-#	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml
+#	helm install jaeger jaegertracing/jaeger --namespace jaeger-ns -f ./jaeger_helm/jaeger_values.yaml --wait
 
 	until curl http://${DEMOSERVER_CONNECTIONMANAGER_SERVICE_IP}:${DEMOSERVER_CONNECTIONMANAGER_SERVICE_PORT}/v1/connectionmgmt/status; do printf '.';sleep 1;done
 

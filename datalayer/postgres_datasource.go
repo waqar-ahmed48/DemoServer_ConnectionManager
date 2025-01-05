@@ -107,7 +107,7 @@ func NewPostgresDataSource(c *configuration.Config, l *slog.Logger) (*PostgresDa
 }
 
 func (d *PostgresDataSource) AutoMigrate() error {
-	return d.rwdb.AutoMigrate(&data.AWSConnection{})
+	return d.rwdb.AutoMigrate(&data.AWSConnection{}, &data.AuditRecord{})
 }
 
 func (d *PostgresDataSource) RODB() *gorm.DB {
@@ -141,4 +141,62 @@ func (d *PostgresDataSource) Ping(ctx context.Context) error {
 
 	err = sqldb.Ping()
 	return err
+}
+
+func UpdateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
+
+	tr := otel.Tracer(tracerName)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
+	// Begin a transaction
+	tx := db.Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	result := tx.Save(obj)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func CreateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
+
+	tr := otel.Tracer(tracerName)
+	_, span := tr.Start(ctx, utilities.GetFunctionName())
+	defer span.End()
+
+	// Begin a transaction
+	tx := db.Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	result := tx.Create(obj)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }

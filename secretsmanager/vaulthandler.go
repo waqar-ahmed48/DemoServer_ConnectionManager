@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"DemoServer_ConnectionManager/configuration"
 	"DemoServer_ConnectionManager/data"
@@ -18,6 +19,11 @@ import (
 
 	_ "github.com/lib/pq"
 	"go.opentelemetry.io/otel"
+)
+
+var (
+	strIAMUser      = "iam_user"
+	strSessionToken = "session_token"
 )
 
 type VaultHandler struct {
@@ -315,17 +321,26 @@ func (vh *VaultHandler) getAWSSecretsEngineRoleName(token string, path string, r
 	}
 
 	r.Data.Role = rl.Data.Keys[0]
+	//r.Data.CredentialType = rl.Data.Keys[1]
 	return err
 }
 
-func (vh *VaultHandler) generateCredsAWSSecretsEngine(token string, path string, role string, r *data.CredsAWSConnectionResponse, ctx context.Context) error {
+func (vh *VaultHandler) generateCredsAWSSecretsEngine(token string, path string, role string, credential_type string, r *data.CredsAWSConnectionResponse, ctx context.Context) error {
 
 	tr := otel.Tracer(vh.c.Server.PrefixMain)
 	_, span := tr.Start(ctx, utilities.GetFunctionName())
 	defer span.End()
 
 	// Prepare the request URL
-	url := fmt.Sprintf("%s/v1/%s/creds/%s", vh.vaultAddress, path, role)
+
+	var endpoint string
+	if strings.ToLower(credential_type) == strIAMUser {
+		endpoint = "creds"
+	} else if strings.ToLower(credential_type) == strSessionToken {
+		endpoint = "sts"
+	}
+
+	url := fmt.Sprintf("%s/v1/%s/%s/%s", vh.vaultAddress, path, endpoint, role)
 
 	// Create the request with appropriate headers
 	req, err := http.NewRequest("GET", url, nil)
@@ -358,20 +373,32 @@ func (vh *VaultHandler) generateCredsAWSSecretsEngine(token string, path string,
 		return err
 	}
 
+	if strings.ToLower(credential_type) == "iam_user" {
+		r.Latency = vh.c.AWS.IAMUserLatency
+	}
+
 	return nil
 }
 
-func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role string, ctx context.Context) error {
+func (vh *VaultHandler) testAWSSecretsEngine(token string, path string, role string, credential_type string, ctx context.Context) error {
 
 	tr := otel.Tracer(vh.c.Server.PrefixMain)
 	_, span := tr.Start(ctx, utilities.GetFunctionName())
 	defer span.End()
 
-	// Prepare the request URL
-	url := fmt.Sprintf("%s/v1/%s/creds/%s", vh.vaultAddress, path, role)
+	var url string
+	var requestType string
+	if strings.ToLower(credential_type) == "iam_user" {
+		url = fmt.Sprintf("%s/v1/%s/creds/%s", vh.vaultAddress, path, role)
+		requestType = "GET"
+
+	} else if strings.ToLower(credential_type) == "session_token" {
+		url = fmt.Sprintf("%s/v1/%s/sts/%s", vh.vaultAddress, path, role)
+		requestType = "POST"
+	}
 
 	// Create the request with appropriate headers
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(requestType, url, nil)
 	if err != nil {
 		return err
 	}
@@ -768,7 +795,12 @@ func (vh *VaultHandler) GenerateCredsAWSSecretsEngine(path string, ctx context.C
 		return nil, err
 	}
 
-	err = vh.generateCredsAWSSecretsEngine(token, path, awsConfig.Data.Role, &credsResponse, ctx)
+	err = vh.getAWSSecretsEngineRole(token, path, &awsConfig, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = vh.generateCredsAWSSecretsEngine(token, path, awsConfig.Data.Role, awsConfig.Data.CredentialType, &credsResponse, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -794,7 +826,12 @@ func (vh *VaultHandler) TestAWSSecretsEngine(path string, ctx context.Context) e
 		return err
 	}
 
-	err = vh.testAWSSecretsEngine(token, path, awsConfig.Data.Role, ctx)
+	err = vh.getAWSSecretsEngineRole(token, path, &awsConfig, ctx)
+	if err != nil {
+		return err
+	}
+
+	err = vh.testAWSSecretsEngine(token, path, awsConfig.Data.Role, awsConfig.Data.CredentialType, ctx)
 	if err != nil {
 		return err
 	}

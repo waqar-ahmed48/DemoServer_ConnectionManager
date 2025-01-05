@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -115,26 +116,26 @@ const (
 	//ErrorConnectionTypeUpdateNotAllowed represents error message for connection type update not allowed.
 	ErrorConnectionTypeUpdateNotAllowed
 
-	//ErrorAWSConnectionPatchInvalidValueForTitle represents error message for invalid value for Title.
-	ErrorAWSConnectionPatchInvalidValueForTitle
+	//ErrorAWSConnectionInvalidValueForName represents error message for invalid value for Name.
+	ErrorAWSConnectionInvalidValueForName
 
-	//ErrorAWSConnectionPatchInvalidValueForDescription represents error message for invalid value for Description.
-	ErrorAWSConnectionPatchInvalidValueForDescription
+	//ErrorAWSConnectionInvalidValueForDescription represents error message for invalid value for Description.
+	ErrorAWSConnectionInvalidValueForDescription
 
-	//ErrorAWSConnectionPatchInvalidValueForURL represents error message for invalid value for URL.
-	ErrorAWSConnectionPatchInvalidValueForAccessKey
+	//ErrorAWSConnectionInvalidValueForURL represents error message for invalid value for URL.
+	ErrorAWSConnectionInvalidValueForAccessKey
 
-	//ErrorAWSConnectionPatchInvalidValueForUsername represents error message for invalid value for Username.
-	ErrorAWSConnectionPatchInvalidValueForSecretAccessKey
+	//ErrorAWSConnectionInvalidValueForUsername represents error message for invalid value for Username.
+	ErrorAWSConnectionInvalidValueForSecretAccessKey
 
-	//ErrorAWSConnectionPatchInvalidValueForPassword represents error message for invalid value for Password.
-	ErrorAWSConnectionPatchInvalidValueForRegion
+	//ErrorAWSConnectionInvalidValueForPassword represents error message for invalid value for Password.
+	ErrorAWSConnectionInvalidValueForRegion
 
-	//ErrorAWSConnectionPatchInvalidValueForProjectID represents error message for invalid value for ProjectID.
-	ErrorAWSConnectionPatchInvalidValueForDefaultLeaseTTL
+	//ErrorAWSConnectionInvalidValueForProjectID represents error message for invalid value for ProjectID.
+	ErrorAWSConnectionInvalidValueForDefaultLeaseTTL
 
-	//ErrorAWSConnectionPatchInvalidValueForIssueTypeID represents error message for invalid value for IssueTypeID.
-	ErrorAWSConnectionPatchInvalidValueForMaxLeaseTTL
+	//ErrorAWSConnectionInvalidValueForIssueTypeID represents error message for invalid value for IssueTypeID.
+	ErrorAWSConnectionInvalidValueForMaxLeaseTTL
 
 	//ErrorDatastoreNotAvailable represents error message for datastore not available.
 	ErrorDatastoreNotAvailable
@@ -198,6 +199,21 @@ const (
 
 	//ErrorConnectionNotTestedSuccessfully represents error message for connection being used has not been tested successfully yet.
 	ErrorConnectionNotTestedSuccessfully
+
+	//ErrorApplicationIDInvalid represents invalid connectionid
+	ErrorApplicationIDInvalid
+
+	//ErrorInvalidPolicyARNs represents invalid policy arns passed in
+	ErrorInvalidPolicyARNs
+
+	//ErrorApplicationAlreadyLinked represents invalid policy arns passed in
+	ErrorApplicationAlreadyLinked
+
+	//ErrorLinkNotFound represents application id link for connection not found
+	ErrorLinkNotFound
+
+	//ErrorJSONDecodingFailed represents error message for json decoding failed.
+	ErrorJSONDecodingFailed
 )
 
 // Error represent the details of error occurred.
@@ -205,6 +221,10 @@ type Error struct {
 	Code        string `json:"errorCode"`
 	Description string `json:"errorDescription"`
 	Help        string `json:"errorHelp"`
+}
+
+func (e Error) Error() error {
+	return fmt.Errorf("%s", e.Code+" - "+e.Description+" - "+e.Help)
 }
 
 // ErrorDictionary represents log dictionary for microservice.
@@ -217,37 +237,42 @@ var ErrorDictionary = map[ErrorTypeEnum]Error{
 	DebugDatastoreConnectionUP:    {"ConnectionManager_Debug_000002", "Datastore connection UP", ""},
 	DebugAWSCredsGenerationFailed: {"ConnectionManager_Debug_000003", "AWSConnection Credentials Generation Failed", ""},
 
-	ErrorNone:                                             {"ConnectionManager_Err_000000", "No error", ""},
-	ErrorConnectionIDInvalid:                              {"ConnectionManager_Err_000001", "ConnectionID is Invalid", ""},
-	ErrorResourceNotFound:                                 {"ConnectionManager_Err_000002", "Resource not found", ""},
-	ErrorInvalidValueForLimit:                             {"ConnectionManager_Err_000003", "Invalid value for Limit parameter", ""},
-	ErrorLimitMustBeGtZero:                                {"ConnectionManager_Err_000004", "Limit is expected to be greater than or equal to 0 when present", ""},
-	ErrorInvalidValueForSkip:                              {"ConnectionManager_Err_000005", "Invalid value for Skip parameter", ""},
-	ErrorSkipMustBeGtZero:                                 {"ConnectionManager_Err_000006", "Skip is expected to be greater than or equal to 0 when present", ""},
-	ErrorDatastoreRetrievalFailed:                         {"ConnectionManager_Err_000007", "Failed to retrieve from datastore", ""},
-	ErrorDatalayerConversionFailed:                        {"ConnectionManager_Err_000008", "Failed to convert datastore document to object", ""},
-	ErrorDatastoreSaveFailed:                              {"ConnectionManager_Err_000009", "Failed to save resource in datastore", ""},
-	ErrorInvalidJSONSchemaForParameter:                    {"ConnectionManager_Err_000010", "Invalid JSON Schema for parameter passed", ""},
-	ErrorInvalidConnectionType:                            {"ConnectionManager_Err_000011", "Invalid connection type", ""},
-	ErrorDatastoreDeleteFailed:                            {"ConnectionManager_Err_000012", "Failed to delete resource from datastore", ""},
-	ErrorConnectionTypeUpdateNotAllowed:                   {"ConnectionManager_Err_000013", "ConnectionType attribute can not be patched", ""},
-	ErrorAWSConnectionPatchInvalidValueForTitle:           {"ConnectionManager_Err_000014", "Invalid value for Title. string expected", ""},
-	ErrorAWSConnectionPatchInvalidValueForDescription:     {"ConnectionManager_Err_000015", "Invalid value for description. string expected", ""},
-	ErrorAWSConnectionPatchInvalidValueForAccessKey:       {"ConnectionManager_Err_000016", "Invalid value for AccessKey. string expected", ""},
-	ErrorAWSConnectionPatchInvalidValueForSecretAccessKey: {"ConnectionManager_Err_000017", "Invalid value for SecretAccessKey. string expected", ""},
-	ErrorAWSConnectionPatchInvalidValueForRegion:          {"ConnectionManager_Err_000018", "Invalid value for region. string expected", ""},
-	ErrorAWSConnectionPatchInvalidValueForDefaultLeaseTTL: {"ConnectionManager_Err_000021", "Invalid value for DefaultLeaseTTL. int expected", ""},
-	ErrorAWSConnectionPatchInvalidValueForMaxLeaseTTL:     {"ConnectionManager_Err_000022", "Invalid value for MaxLeaseTTL. int expected", ""},
-	ErrorDatastoreNotAvailable:                            {"ConnectionManager_Err_000023", "Datastore connection down", ""},
-	ErrorJSONEncodingFailed:                               {"ConnectionManager_Err_000024", "JSON Ecoding Failed", ""},
-	ErrorHTTPServerShutdownFailed:                         {"ConnectionManager_Err_000025", "HTTP Server Shutdown failed", ""},
-	ErrorAWSConnectionPatchInvalidValueForConnectionType:  {"ConnectionManager_Err_000026", "Invalid value for connectiontype. string expected", ""},
-	ErrorDatastoreConnectionCloseFailed:                   {"ConnectionManager_Err_000027", "Failed to close datastore connection", ""},
-	ErrorDatastoreFailedToCreateDB:                        {"ConnectionManager_Err_000028", "Failed to create database in datastore", ""},
-	ErrorVaultNotAvailable:                                {"ConnectionManager_Err_000029", "Vault connection down", ""},
-	ErrorVaultAuthenticationFailed:                        {"ConnectionManager_Err_000030", "Vault authentication failed", ""},
-	ErrorVaultTLSConfigurationFailed:                      {"ConnectionManager_Err_000031", "Vault TLS Configuration failed", ""},
-	ErrorConnectionNotTestedSuccessfully:                  {"ConnectionManager_Err_000032", "Connection has to be tested successfully before it can be used.", ""},
+	ErrorNone:                                            {"ConnectionManager_Err_000000", "No error", ""},
+	ErrorConnectionIDInvalid:                             {"ConnectionManager_Err_000001", "ConnectionID is Invalid", ""},
+	ErrorResourceNotFound:                                {"ConnectionManager_Err_000002", "Resource not found", ""},
+	ErrorInvalidValueForLimit:                            {"ConnectionManager_Err_000003", "Invalid value for Limit parameter", ""},
+	ErrorLimitMustBeGtZero:                               {"ConnectionManager_Err_000004", "Limit is expected to be greater than or equal to 0 when present", ""},
+	ErrorInvalidValueForSkip:                             {"ConnectionManager_Err_000005", "Invalid value for Skip parameter", ""},
+	ErrorSkipMustBeGtZero:                                {"ConnectionManager_Err_000006", "Skip is expected to be greater than or equal to 0 when present", ""},
+	ErrorDatastoreRetrievalFailed:                        {"ConnectionManager_Err_000007", "Failed to retrieve from datastore", ""},
+	ErrorDatalayerConversionFailed:                       {"ConnectionManager_Err_000008", "Failed to convert datastore document to object", ""},
+	ErrorDatastoreSaveFailed:                             {"ConnectionManager_Err_000009", "Failed to save resource in datastore", ""},
+	ErrorInvalidJSONSchemaForParameter:                   {"ConnectionManager_Err_000010", "Invalid JSON Schema for parameter passed", ""},
+	ErrorInvalidConnectionType:                           {"ConnectionManager_Err_000011", "Invalid connection type", ""},
+	ErrorDatastoreDeleteFailed:                           {"ConnectionManager_Err_000012", "Failed to delete resource from datastore", ""},
+	ErrorConnectionTypeUpdateNotAllowed:                  {"ConnectionManager_Err_000013", "ConnectionType attribute can not be patched", ""},
+	ErrorAWSConnectionInvalidValueForName:                {"ConnectionManager_Err_000014", "Invalid value for Name", ""},
+	ErrorAWSConnectionInvalidValueForDescription:         {"ConnectionManager_Err_000015", "Invalid value for description", ""},
+	ErrorAWSConnectionInvalidValueForAccessKey:           {"ConnectionManager_Err_000016", "Invalid value for AccessKey", ""},
+	ErrorAWSConnectionInvalidValueForSecretAccessKey:     {"ConnectionManager_Err_000017", "Invalid value for SecretAccessKey", ""},
+	ErrorAWSConnectionInvalidValueForRegion:              {"ConnectionManager_Err_000018", "Invalid value for region", ""},
+	ErrorAWSConnectionInvalidValueForDefaultLeaseTTL:     {"ConnectionManager_Err_000021", "Invalid value for DefaultLeaseTTL", ""},
+	ErrorAWSConnectionInvalidValueForMaxLeaseTTL:         {"ConnectionManager_Err_000022", "Invalid value for MaxLeaseTTL", ""},
+	ErrorDatastoreNotAvailable:                           {"ConnectionManager_Err_000023", "Datastore connection down", ""},
+	ErrorJSONEncodingFailed:                              {"ConnectionManager_Err_000024", "JSON Ecoding Failed", ""},
+	ErrorHTTPServerShutdownFailed:                        {"ConnectionManager_Err_000025", "HTTP Server Shutdown failed", ""},
+	ErrorAWSConnectionPatchInvalidValueForConnectionType: {"ConnectionManager_Err_000026", "Invalid value for connectiontype. string expected", ""},
+	ErrorDatastoreConnectionCloseFailed:                  {"ConnectionManager_Err_000027", "Failed to close datastore connection", ""},
+	ErrorDatastoreFailedToCreateDB:                       {"ConnectionManager_Err_000028", "Failed to create database in datastore", ""},
+	ErrorVaultNotAvailable:                               {"ConnectionManager_Err_000029", "Vault connection down", ""},
+	ErrorVaultAuthenticationFailed:                       {"ConnectionManager_Err_000030", "Vault authentication failed", ""},
+	ErrorVaultTLSConfigurationFailed:                     {"ConnectionManager_Err_000031", "Vault TLS Configuration failed", ""},
+	ErrorConnectionNotTestedSuccessfully:                 {"ConnectionManager_Err_000032", "Connection has to be tested successfully before it can be used", ""},
+	ErrorApplicationIDInvalid:                            {"ConnectionManager_Err_000033", "invalid value for applicationid", ""},
+	ErrorInvalidPolicyARNs:                               {"ConnectionManager_Err_000034", "invalid policy arns value", ""},
+	ErrorApplicationAlreadyLinked:                        {"ConnectionManager_Err_000035", "application id already linked to the connection", ""},
+	ErrorLinkNotFound:                                    {"ConnectionManager_Err_000036", "application id link to the connection not found", ""},
+	ErrorJSONDecodingFailed:                              {"ConnectionManager_Err_000037", "json decoding failed", ""},
 }
 
 // ErrorResponse represents information returned by Microservice endpoints in case that was an error
@@ -300,23 +325,8 @@ type ErrorResponse struct {
 	RequestID string `json:"requestID"`
 }
 
-// GetErrorResponse prepares error response to be returned to caller.
-func GetErrorResponse(status int, err ErrorTypeEnum, r *http.Request, requestid string) ErrorResponse {
-	return ErrorResponse{
-		Timestamp:           time.Now().String(),
-		Status:              status,
-		ErrorCode:           ErrorDictionary[err].Code,
-		ErrorDescription:    ErrorDictionary[err].Description,
-		ErrorAdditionalInfo: "",
-		ErrorHelp:           ErrorDictionary[err].Help,
-		Endpoint:            r.URL.EscapedPath(),
-		Method:              r.Method,
-		RequestID:           requestid,
-	}
-}
-
-// GetErrorResponseWithAdditionalInfo prepares error response with additional original error contextual message to be returned to caller.
-func GetErrorResponseWithAdditionalInfo(status int, err ErrorTypeEnum, r *http.Request, requestid string, e error) ErrorResponse {
+// GetErrorResponse prepares error response with additional original error contextual message to be returned to caller.
+func GetErrorResponse(status int, err ErrorTypeEnum, r *http.Request, requestid string, e error) ErrorResponse {
 	return ErrorResponse{
 		Timestamp:           time.Now().String(),
 		Status:              status,
@@ -380,35 +390,20 @@ func LogInfo(cl *slog.Logger, err ErrorTypeEnum, e error, span trace.Span) {
 	}
 }
 
-// ReturnError prepares error json to be returned to caller.
-func ReturnError(cl *slog.Logger, status int, err ErrorTypeEnum, requestid string, r *http.Request, rw *http.ResponseWriter, span trace.Span) {
+// ReturnError prepares error json to be returned to caller with additional context.
+func ReturnError(cl *slog.Logger, status int, err ErrorTypeEnum, internalError error, requestid string, r *http.Request, rw *http.ResponseWriter, span trace.Span) {
+	LogError(cl, err, internalError, span)
+
 	errorResponse := GetErrorResponse(
 		status,
 		err,
 		r,
-		requestid)
-
-	http.Error(*rw, "", status)
-
-	e := json.NewEncoder(*rw).Encode(errorResponse)
-
-	if e != nil {
-		LogError(cl, ErrorJSONEncodingFailed, e, span)
-	}
-}
-
-// ReturnErrorWithAdditionalInfo prepares error json to be returned to caller with additional context.
-func ReturnErrorWithAdditionalInfo(cl *slog.Logger, status int, err ErrorTypeEnum, requestid string, r *http.Request, rw *http.ResponseWriter, e error, span trace.Span) {
-	errorResponse := GetErrorResponseWithAdditionalInfo(
-		status,
-		err,
-		r,
 		requestid,
-		e)
+		internalError)
 
 	http.Error(*rw, "", http.StatusBadRequest)
 
-	e = json.NewEncoder(*rw).Encode(errorResponse)
+	e := json.NewEncoder(*rw).Encode(errorResponse)
 
 	if e != nil {
 		LogError(cl, ErrorJSONEncodingFailed, e, span)

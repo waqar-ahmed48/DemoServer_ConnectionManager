@@ -45,3 +45,5 @@ datalayer:
 aws:
   default_lease_ttl: 20
   max_lease_ttl: 0
+  iam_user_latency: 10
+  default_sts_ttl: 900

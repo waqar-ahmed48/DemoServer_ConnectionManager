@@ -45,11 +45,11 @@ type ConnectionPostWrapper struct {
 type ConnectionPatchWrapper struct {
 	// User friendly name for Connection
 	// required: true
-	Name string `json:"name" validate:"required" gorm:"index;not null;unique"`
+	Name *string `json:"name,omitempty" validate:"omitempty" gorm:"index;not null;unique"`
 
 	// Description of Connection
 	// required: false
-	Description string `json:"description" gorm:"index"`
+	Description *string `json:"description,omitempty" validate:"omitempty" gorm:"index"`
 }
 
 // Connection represents generic Connection resource returned by Microservice endpoints
@@ -89,6 +89,10 @@ type Connection struct {
 	// Date and time of latest successful connectivity test
 	// required: false
 	LastSuccessfulTest string `json:"lastsuccessfultest"`
+
+	// Applications consuming the connection
+	// required: false
+	Applications []string `json:"applications" gorm:"type:json"`
 }
 
 // ConnectionsResponse represents generic Connection attributes which are returned in response of GET on connections endpoint.

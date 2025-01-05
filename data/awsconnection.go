@@ -53,35 +53,35 @@ type AWSConnectionPostWrapper struct {
 // AWSConnectionPatchWrapper represents AWSConnection attributes for PATCH request body schema.
 // swagger:model
 type AWSConnectionPatchWrapper struct {
-	Connection ConnectionPatchWrapper `json:"connection" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Connection *ConnectionPatchWrapper `json:"connection,omitempty" validate:"omitempty" gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 
 	// AccessKey for AWS Account
 	// required: true
-	AccessKey string `json:"accesskey" validate:"required" gorm:"-"`
+	AccessKey *string `json:"accesskey,omitempty" validate:"omitempty" gorm:"-"`
 
 	// SecretAccessKey for AWS Account
 	// required: true
-	SecretAccessKey string `json:"secretaccesskey" validate:"required" gorm:"-"`
+	SecretAccessKey *string `json:"secretaccesskey,omitempty" validate:"omitempty" gorm:"-"`
 
 	// DefaultRegion for AWS Account
 	// required: false
-	DefaultRegion string `json:"default_region" gorm:"-"`
+	DefaultRegion *string `json:"default_region,omitempty" validate:"omitempty" gorm:"-"`
 
 	// DefaultRegion for AWS Account
 	// required: false
-	DefaultLeaseTTL string `json:"default_lease_ttl" gorm:"-"`
+	DefaultLeaseTTL *string `json:"default_lease_ttl,omitempty" validate:"omitempty" gorm:"-"`
 
 	// DefaultRegion for AWS Account
 	// required: false
-	MaxLeaseTTL string `json:"max_lease_ttl" gorm:"-"`
+	MaxLeaseTTL *string `json:"max_lease_ttl,omitempty" validate:"omitempty" gorm:"-"`
 
 	// CredentialType CredentialType for AWS Account Role
 	// required: true
-	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user" gorm:"-"`
+	CredentialType *string `json:"credential_type,omitempty" validate:"omitempty,oneof=iam_user session_token" gorm:"-"`
 
 	// PolicyARNs PolicyARNs for AWS Account
 	// required: true
-	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
+	PolicyARNs []string `json:"policy_arns,omitempty" validate:"omitempty" gorm:"-"`
 }
 
 // AWSConnection represents AWSConnection resource serialized by Microservice endpoints
@@ -123,11 +123,11 @@ type AWSConnection struct {
 
 	// CredentialType CredentialType for AWS Account Role
 	// required: true
-	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user" gorm:"-"`
+	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user session_token" gorm:"-"`
 
 	// PolicyARNs PolicyARNs for AWS Account
-	// required: true
-	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
+	// required: only if credential_type is set to iam_user
+	PolicyARNs []string `json:"policy_arns" gorm:"-"`
 }
 
 // AWSConnectionResponseWrapper represents limited information AWSConnection resource returned by Post, Get and List endpoints
@@ -210,6 +210,10 @@ type CredsAWSConnectionResponse struct {
 	// LeaseDuration for generated access
 	// out: lease_duration
 	LeaseDuration int `json:"lease_duration"`
+
+	// Latency in seconds before credentials can be used with AWS
+	// out: latency
+	Latency int `json:"latency"`
 
 	Data struct {
 		// AccessKey for generated access
