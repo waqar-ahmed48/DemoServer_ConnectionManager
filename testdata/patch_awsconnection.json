@@ -1,3 +1,7 @@
 {
-      "accesskey": "dummy access key 5"
+    "connection": {
+        "name": "Demo01Account_AWS_1_STS - 6",
+        "description": "newly updated description 6"
+      },
+      "accesskey": "dummy access key 6"
 }

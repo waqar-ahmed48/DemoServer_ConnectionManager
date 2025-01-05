@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const (
+var (
 	prefixHTTP         = "http://"
 	strPatched         = "_Patched"
 	strHyphen          = "-"

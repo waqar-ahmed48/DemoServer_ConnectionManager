@@ -1268,7 +1268,12 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 
 	var c_wrapper data.AWSConnectionResponseWrapper
 
-	_ = utilities.CopyMatchingFields(c, &c_wrapper)
+	err = utilities.CopyMatchingFields(c, &c_wrapper)
+
+	if err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		return
+	}
 
 	err = json.NewEncoder(w).Encode(c_wrapper)
 

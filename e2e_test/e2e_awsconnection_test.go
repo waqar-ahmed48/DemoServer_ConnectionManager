@@ -93,15 +93,27 @@ func (s *EndToEndSuite) funcUpdateAWSConnection_Load() {
 		for _, jc := range rc.AWSConnections {
 
 			var obj data.AWSConnectionPatchWrapper
+			var connection data.ConnectionPatchWrapper
 
-			*obj.Connection.Name = jc.Connection.Name + suffix
-			*obj.Connection.Description = jc.Connection.Description + suffix
-			*obj.AccessKey = jc.AccessKey + suffix
-			*obj.DefaultRegion = strDefaultRegion
-			*obj.SecretAccessKey = "Dummy Secret Key Value_" + suffix
-			*obj.DefaultLeaseTTL = strDefaultLeaseTTL
-			*obj.MaxLeaseTTL = strMaxLeaseTTL
-			*obj.CredentialType = jc.CredentialType
+			nameWithSuffix := (jc.Connection.Name + suffix)
+			connection.Name = &nameWithSuffix
+
+			descriptionWithSuffix := jc.Connection.Description + suffix
+			connection.Description = &descriptionWithSuffix
+
+			obj.Connection = &connection
+
+			accesskeyWithSuffix := jc.AccessKey + suffix
+			obj.AccessKey = &accesskeyWithSuffix
+
+			obj.DefaultRegion = &strDefaultRegion
+
+			secretaccesskeyWithSuffix := "Dummy Secret Key Value_" + suffix
+			obj.SecretAccessKey = &secretaccesskeyWithSuffix
+
+			obj.DefaultLeaseTTL = &strDefaultLeaseTTL
+			obj.MaxLeaseTTL = &strMaxLeaseTTL
+			obj.CredentialType = &jc.CredentialType
 			obj.PolicyARNs = append(jc.PolicyARNs, "arn:aws:iam::aws:policy/AmazonS3FullAccess")
 
 			jsonData, err := json.Marshal(obj)
@@ -148,15 +160,15 @@ func (s *EndToEndSuite) funcUpdateAWSConnection_Load() {
 			}
 
 			s.Equal(strings.ToLower(jc.ID.String()), strings.ToLower(rc.ID.String()), "ConnectionID not matching. Expected: %s, Actual: %s", strings.ToLower(jc.ID.String()), strings.ToLower(rc.ID.String()))
-			s.Equal(obj.Connection.Name, rc.Connection.Name, "Unexpected title. Expected: %s, Actual: %s", jc.Connection.Name, rc.Connection.Name)
-			s.Equal(obj.Connection.Description, rc.Connection.Description, "Unexpected Description. Expected %s, Actual: %s", jc.Connection.Description, rc.Connection.Description)
+			s.Equal(*obj.Connection.Name, rc.Connection.Name, "Unexpected title. Expected: %s, Actual: %s", *obj.Connection.Name, rc.Connection.Name)
+			s.Equal(*obj.Connection.Description, rc.Connection.Description, "Unexpected Description. Expected %s, Actual: %s", *obj.Connection.Description, rc.Connection.Description)
 			s.Equal(rc.Connection.ConnectionType, data.AWSConnectionType, "Unexpected connectiontype")
 			s.Equal(rc.Connection.TestSuccessful, 0, "Unexpected TestSuccessful state. Expected: %d, Actual: %d", 0, rc.Connection.TestSuccessful)
 			s.Equal(rc.Connection.TestError, "", "Unexpected TestError state. Expected: %s, Actual: %s", "EmptyString", rc.Connection.TestError)
-			s.Equal(obj.AccessKey, rc.AccessKey, "Unexpected URL. Expected %s, Actual: %s", jc.AccessKey, rc.AccessKey)
+			s.Equal(*obj.AccessKey, rc.AccessKey, "Unexpected URL. Expected %s, Actual: %s", *obj.AccessKey, rc.AccessKey)
 			s.Equal(strDefaultRegion, rc.DefaultRegion, "Unexpected DefaultRegion. Expected %s, Actual: %s", strDefaultRegion, rc.DefaultRegion)
-			s.Equal(obj.DefaultLeaseTTL, rc.DefaultLeaseTTL, "Unexpected DefaultLeaseTTL. Expected %s, Actual: %s", obj.DefaultLeaseTTL, rc.DefaultLeaseTTL)
-			s.Equal(obj.MaxLeaseTTL, rc.MaxLeaseTTL, "Unexpected MaxLeaseTTL. Expected %s, Actual: %s", obj.MaxLeaseTTL, rc.MaxLeaseTTL)
+			s.Equal(*obj.DefaultLeaseTTL, rc.DefaultLeaseTTL, "Unexpected DefaultLeaseTTL. Expected %s, Actual: %s", *obj.DefaultLeaseTTL, rc.DefaultLeaseTTL)
+			s.Equal(*obj.MaxLeaseTTL, rc.MaxLeaseTTL, "Unexpected MaxLeaseTTL. Expected %s, Actual: %s", *obj.MaxLeaseTTL, rc.MaxLeaseTTL)
 			s.Equal(jc.RoleName, rc.RoleName, "Unexpected RoleName. Expected %s, Actual: %s", jc.RoleName, rc.RoleName)
 			s.Equal(jc.CredentialType, rc.CredentialType, "Unexpected CredentialType. Expected %s, Actual: %s", jc.CredentialType, rc.CredentialType)
 			s.Equal(strings.Join(obj.PolicyARNs, "_"), strings.Join(rc.PolicyARNs, "_"), "Unexpected PolicyARNs. Expected %s, Actual: %s", strings.Join(obj.PolicyARNs, "_"), strings.Join(rc.PolicyARNs, "_"))
