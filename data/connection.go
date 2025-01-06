@@ -18,10 +18,6 @@ type ConnectionPostWrapper struct {
 	// required: false
 	Description string `json:"description" gorm:"index"`
 
-	// Type of connection.
-	// required: true
-	ConnectionType ConnectionTypeEnum `json:"connectiontype" gorm:"index;not null"`
-
 	// Latest connectivity test result. 0 = Failed. 1 = Successful
 	// required: false
 	TestSuccessful int `json:"testsuccessful"`

@@ -773,22 +773,10 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnection(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
+		ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
 		defer span.End()
 
-		vars := mux.Vars(r)
-		connectionid := vars["connectionid"]
-
-		if len(connectionid) == 0 {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorConnectionIDInvalid,
-				helper.ErrorDictionary[helper.ErrorConnectionIDInvalid].Error(),
-				requestid,
-				r,
-				&rw,
-				span)
+		if _, found := utilities.ValidateQueryStringParam("connectionid", r, cl, rw, span); !found {
 			return
 		}
 
@@ -800,87 +788,27 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnection(next http.Handler)
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
+		ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.cfg.Server.PrefixMain)
 		defer span.End()
 
-		c := data.NewAWSConnection(h.cfg)
-
-		err := c.FromJSON(r.Body)
-		if err != nil {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorInvalidJSONSchemaForParameter,
-				err,
-				requestid,
-				r,
-				&rw,
-				span)
+		payload, valid := utilities.DecodeAndValidate[data.ConnectionPostWrapper](r, cl, rw, span)
+		if !valid {
 			return
-
 		}
 
-		err = c.Validate()
-		if err != nil {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorInvalidJSONSchemaForParameter,
-				err,
-				requestid,
-				r,
-				&rw,
-				span)
-			return
-
-		}
-
-		if c.Connection.ConnectionType != data.NoConnectionType {
-			if c.Connection.ConnectionType != data.AWSConnectionType {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorInvalidConnectionType,
-					helper.ErrorDictionary[helper.ErrorInvalidConnectionType].Error(),
-					requestid,
-					r,
-					&rw,
-					span)
-				return
-
-			}
-		}
-
-		// add the connection to the context
-		//ctx := context.WithValue(r.Context(), KeyAWSConnectionRecord{}, c)
-		ctx = context.WithValue(ctx, KeyAWSConnectionRecord{}, c)
-		r = r.WithContext(ctx)
-
-		// Call the next handler, which can be another middleware in the chain, or the final handler.
-		next.ServeHTTP(rw, r)
+		// Add application to context
+		ctx = context.WithValue(ctx, KeyAWSConnectionRecord{}, payload)
+		next.ServeHTTP(rw, r.WithContext(ctx))
 	})
 }
 
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionUpdate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
+		ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.cfg.Server.PrefixMain)
 		defer span.End()
 
-		vars := mux.Vars(r)
-		connectionid := vars["connectionid"]
-		var p data.AWSConnectionPatchWrapper
-
-		if len(connectionid) == 0 {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorConnectionIDInvalid,
-				helper.ErrorDictionary[helper.ErrorConnectionIDInvalid].Error(),
-				requestid,
-				r,
-				&rw,
-				span)
+		if _, found := utilities.ValidateQueryStringParam("connectionid", r, cl, rw, span); !found {
 			return
 		}
 

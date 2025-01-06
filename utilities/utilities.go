@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/go-playground/validator"
+	"github.com/gorilla/mux"
 	"go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
 	"gorm.io/gorm"
@@ -410,4 +411,59 @@ func CreateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName st
 	}
 
 	return nil
+}
+
+// Generalized middleware for validating connection id
+func validateQueryStringParam(param string, r *http.Request, cl *slog.Logger, rw http.ResponseWriter, span trace.Span) (string, bool) {
+	p := mux.Vars(r)[param]
+	if len(p) == 0 {
+		helper.ReturnError(
+			cl,
+			http.StatusBadRequest,
+			helper.ErrorInvalidParameter,
+			fmt.Errorf("invalid parameter value. paramter: %s", param),
+			"",
+			r,
+			&rw,
+			span,
+		)
+		return "", false
+	}
+	return p, true
+}
+
+// Middleware for decoding and validating JSON payloads
+func DecodeAndValidate[T any](r *http.Request, cl *slog.Logger, rw http.ResponseWriter, span trace.Span) (*T, bool) {
+	var payload T
+	err := json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
+		helper.ReturnError(
+			cl,
+			http.StatusBadRequest,
+			helper.ErrorInvalidJSONSchemaForParameter,
+			err,
+			"",
+			r,
+			&rw,
+			span,
+		)
+		return nil, false
+	}
+
+	err = validator.New().Struct(payload)
+	if err != nil {
+		helper.LogDebug(cl, helper.ErrorInvalidJSONSchemaForParameter, err, span)
+		helper.ReturnError(
+			cl,
+			http.StatusBadRequest,
+			helper.ErrorInvalidJSONSchemaForParameter,
+			err,
+			"",
+			r,
+			&rw,
+			span,
+		)
+		return nil, false
+	}
+	return &payload, true
 }
