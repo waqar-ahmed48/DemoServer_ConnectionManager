@@ -9,14 +9,16 @@ import (
 	"DemoServer_ConnectionManager/utilities"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
 )
 
@@ -24,11 +26,11 @@ type KeyAWSConnectionRecord struct{}
 type KeyAWSConnectionPatchParamsRecord struct{}
 
 type AWSConnectionHandler struct {
-	l                      *slog.Logger
-	cfg                    *configuration.Config
-	pd                     *datalayer.PostgresDataSource
-	vh                     *secretsmanager.VaultHandler
-	connections_list_limit int
+	l          *slog.Logger
+	cfg        *configuration.Config
+	pd         *datalayer.PostgresDataSource
+	vh         *secretsmanager.VaultHandler
+	list_limit int
 }
 
 func NewAWSConnectionHandler(cfg *configuration.Config, l *slog.Logger, pd *datalayer.PostgresDataSource, vh *secretsmanager.VaultHandler) (*AWSConnectionHandler, error) {
@@ -37,7 +39,7 @@ func NewAWSConnectionHandler(cfg *configuration.Config, l *slog.Logger, pd *data
 	c.cfg = cfg
 	c.l = l
 	c.pd = pd
-	c.connections_list_limit = cfg.Server.ListLimit
+	c.list_limit = cfg.Server.ListLimit
 	c.vh = vh
 
 	return &c, nil
@@ -90,175 +92,88 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
 	defer span.End()
 
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
-
 	vars := r.URL.Query()
+	limit := utilities.ParseQueryParam(vars, "limit", h.list_limit, h.cfg.DataLayer.MaxResults)
+	skip := utilities.ParseQueryParam(vars, "skip", 0, math.MaxInt32)
 
-	limit, skip := h.connections_list_limit, 0
-
-	limit_str := vars.Get("limit")
-	if limit_str != "" {
-		limit, _ = strconv.Atoi(limit_str)
-	}
-
-	skip_str := vars.Get("skip")
-	if skip_str != "" {
-		skip, _ = strconv.Atoi(skip_str)
-	}
-
-	if limit == -1 || limit > h.cfg.DataLayer.MaxResults {
-		limit = h.cfg.DataLayer.MaxResults
-	}
-
-	var response data.AWSConnectionsResponse
-
-	var conns []data.AWSConnection
-
-	result := h.pd.RODB().
-		Preload("Connection"). // Preloads the Connection struct
-		Limit(limit).
-		Offset(skip).
-		Order("connections.name"). // Orders by the name in the Connection table
-		Joins("left join connections on connections.id = aws_connections.connection_id").
-		Find(&conns) // Finds all AWSConnection entries
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
+	connections, err := h.fetchAWSConnections(limit, skip)
+	if err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, err, requestid, r, &w, span)
 		return
 	}
 
-	response.Total = len(conns)
-	response.Skip = skip
-	response.Limit = limit
-	if response.Total == 0 {
-		response.AWSConnections = ([]data.AWSConnectionResponseWrapper{})
-	} else {
-		for _, value := range conns {
-			err := h.vh.GetAWSSecretsEngine(&value, ctx)
-
-			if err != nil {
-				helper.LogError(cl, helper.ErrorVaultLoadFailed, err, span)
-
-				helper.ReturnError(
-					cl,
-					http.StatusInternalServerError,
-					helper.ErrorVaultLoadFailed,
-					err,
-					requestid,
-					r,
-					&w,
-					span)
-				return
-			}
-
-			var oRespConn data.AWSConnectionResponseWrapper
-			_ = utilities.CopyMatchingFields(value, &oRespConn)
-			response.AWSConnections = append(response.AWSConnections, oRespConn)
-		}
-	}
-
-	err := json.NewEncoder(w).Encode(response)
-
+	response, err := h.buildAWSConnectionsResponse(ctx, connections, limit, skip)
 	if err != nil {
-		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorVaultLoadFailed, err, requestid, r, &w, span)
+		return
 	}
+
+	utilities.WriteResponse(w, cl, response, span)
+}
+
+func (h *AWSConnectionHandler) fetchAWSConnections(limit, skip int) ([]data.AWSConnection, error) {
+	var connections []data.AWSConnection
+
+	result := h.pd.RODB().
+		Preload("Connection").
+		Limit(limit).
+		Offset(skip).
+		Order("connections.name").
+		Joins("LEFT JOIN connections ON connections.id = aws_connections.connection_id").
+		Find(&connections)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return connections, nil
+}
+
+func (h *AWSConnectionHandler) buildAWSConnectionsResponse(ctx context.Context, connections []data.AWSConnection, limit, skip int) (data.AWSConnectionsResponse, error) {
+	response := data.AWSConnectionsResponse{
+		Total: len(connections),
+		Skip:  skip,
+		Limit: limit,
+	}
+
+	if len(connections) == 0 {
+		response.AWSConnections = []data.AWSConnectionResponseWrapper{}
+		return response, nil
+	}
+
+	for _, conn := range connections {
+		if err := h.vh.GetAWSSecretsEngine(&conn, ctx); err != nil {
+			return response, err
+		}
+
+		var wrappedConn data.AWSConnectionResponseWrapper
+		if err := utilities.CopyMatchingFields(conn, &wrappedConn); err != nil {
+			return response, err
+		}
+		response.AWSConnections = append(response.AWSConnections, wrappedConn)
+	}
+
+	return response, nil
 }
 
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionsGet(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.cfg.Server.PrefixMain)
 		defer span.End()
-
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		vars := r.URL.Query()
 
-		limit_str := vars.Get("limit")
-		if limit_str != "" {
-			limit, err := strconv.Atoi(limit_str)
-			if err != nil {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorInvalidValueForLimit,
-					err,
-					requestid,
-					r,
-					&rw,
-					span)
-				return
-			}
-
-			if limit <= 0 {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorLimitMustBeGtZero,
-					helper.ErrorDictionary[helper.ErrorLimitMustBeGtZero].Error(),
-					requestid,
-					r,
-					&rw,
-					span)
-				return
-			}
+		// Validate limit parameter
+		if err := utilities.ValidateQueryParam(vars.Get("limit"), 1, true, cl, r, rw, span, requestid, helper.ErrorInvalidValueForLimit); err != nil {
+			return
 		}
 
-		skip_str := vars.Get("skip")
-		if skip_str != "" {
-			skip, err := strconv.Atoi(skip_str)
-			if err != nil {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorInvalidValueForSkip,
-					err,
-					requestid,
-					r,
-					&rw,
-					span)
-				return
-			}
-
-			if skip < 0 {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorSkipMustBeGtZero,
-					helper.ErrorDictionary[helper.ErrorSkipMustBeGtZero].Error(),
-					requestid,
-					r,
-					&rw,
-					span)
-				return
-			}
+		// Validate skip parameter
+		if err := utilities.ValidateQueryParam(vars.Get("skip"), 0, false, cl, r, rw, span, requestid, helper.ErrorInvalidValueForSkip); err != nil {
+			return
 		}
 
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
@@ -303,75 +218,25 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
 	defer span.End()
 
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
-
-	vars := mux.Vars(r)
-	connectionid := vars["connectionid"]
-	var connection data.AWSConnection
-
-	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		helper.ReturnError(
-			cl,
-			http.StatusNotFound,
-			helper.ErrorResourceNotFound,
-			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	err := h.vh.GetAWSSecretsEngine(&connection, ctx)
-
+	connectionID := mux.Vars(r)["connectionid"]
+	connection, err := h.fetchAWSConnection(connectionID)
 	if err != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorVaultLoadFailed,
-			err,
-			requestid,
-			r,
-			&w,
-			span)
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, err, requestID, r, &w, span)
 		return
 	}
 
-	var oRespConn data.AWSConnectionResponseWrapper
-	_ = utilities.CopyMatchingFields(connection, &oRespConn)
-
-	err = json.NewEncoder(w).Encode(oRespConn)
-
-	if err != nil {
-		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
+	if err := h.vh.GetAWSSecretsEngine(connection, ctx); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorVaultLoadFailed, err, requestID, r, &w, span)
+		return
 	}
+
+	var response data.AWSConnectionResponseWrapper
+	_ = utilities.CopyMatchingFields(connection, &response)
+
+	utilities.WriteResponse(w, cl, response, span)
 }
 
 func (h *AWSConnectionHandler) GenerateCredsAWSConnection(w http.ResponseWriter, r *http.Request) {
@@ -410,82 +275,37 @@ func (h *AWSConnectionHandler) GenerateCredsAWSConnection(w http.ResponseWriter,
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
 	defer span.End()
 
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
+	connectionID := mux.Vars(r)["connectionid"]
+	connection, err := h.fetchAWSConnection(connectionID)
+	if err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, err, requestID, r, &w, span)
+		return
+	}
 
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
+	if err := h.vh.GetAWSSecretsEngine(connection, ctx); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorVaultLoadFailed, err, requestID, r, &w, span)
+		return
+	}
 
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
+	var response data.AWSConnectionResponseWrapper
+	_ = utilities.CopyMatchingFields(connection, &response)
 
-	vars := mux.Vars(r)
-	connectionid := vars["connectionid"]
+	utilities.WriteResponse(w, cl, response, span)
+}
+
+func (h *AWSConnectionHandler) fetchAWSConnection(connectionID string) (*data.AWSConnection, error) {
 	var connection data.AWSConnection
-
-	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
-
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionID)
 	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
+		return nil, result.Error
 	}
-
 	if result.RowsAffected == 0 {
-
-		helper.ReturnError(
-			cl,
-			http.StatusNotFound,
-			helper.ErrorResourceNotFound,
-			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
-			requestid,
-			r,
-			&w,
-			span)
-		return
+		return nil, errors.New(helper.ErrorDictionary[helper.ErrorResourceNotFound].Error())
 	}
-
-	if connection.Connection.TestSuccessful != 1 {
-		helper.LogDebug(cl, helper.ErrorConnectionNotTestedSuccessfully, helper.ErrNone, span)
-
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorConnectionNotTestedSuccessfully,
-			helper.ErrorDictionary[helper.ErrorConnectionNotTestedSuccessfully].Error(),
-			requestid,
-			r,
-			&w,
-			span)
-
-		return
-	}
-
-	response, err := h.vh.GenerateCredsAWSSecretsEngine(connection.VaultPath, ctx)
-
-	if err != nil {
-		helper.LogDebug(cl, helper.DebugAWSConnectionTestFailed, err, span)
-	} else {
-		response.ConnectionID = connectionid
-	}
-
-	err = json.NewEncoder(w).Encode(&response)
-
-	if err != nil {
-		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
-	}
+	return &connection, nil
 }
 
 func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.Request) {
@@ -524,102 +344,33 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
 	defer span.End()
 
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
-
-	vars := mux.Vars(r)
-	connectionid := vars["connectionid"]
-	var connection data.AWSConnection
+	connectionID := mux.Vars(r)["connectionid"]
+	connection, err := h.fetchAWSConnection(connectionID)
+	if err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, err, requestID, r, &w, span)
+		return
+	}
 
 	var response data.TestAWSConnectionResponse
-
-	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
-
-	if result.Error != nil {
-		helper.LogError(cl, helper.ErrorDatastoreRetrievalFailed, result.Error, span)
-
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		helper.ReturnError(
-			cl,
-			http.StatusNotFound,
-			helper.ErrorResourceNotFound,
-			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	err := h.vh.TestAWSSecretsEngine(connection.VaultPath, ctx)
-
-	if err != nil {
+	if err := h.vh.TestAWSSecretsEngine(connection.VaultPath, ctx); err != nil {
 		helper.LogDebug(cl, helper.DebugAWSConnectionTestFailed, err, span)
 		connection.Connection.SetTestFailed(err.Error())
 	} else {
 		connection.Connection.SetTestPassed()
 	}
 
-	result = h.pd.RWDB().Save(&connection.Connection)
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreSaveFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	if result.RowsAffected != 1 {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreSaveFailed,
-			helper.ErrorDictionary[helper.ErrorDatastoreSaveFailed].Error(),
-			requestid,
-			r,
-			&w,
-			span)
-		return
+	if err := utilities.UpdateObject(h.pd.RWDB(), &connection.Connection, ctx, h.cfg.Server.PrefixMain); err != nil {
+		helper.LogError(cl, helper.ErrorDatastoreSaveFailed, err, span)
 	}
 
 	response.ID = connection.ID.String()
 	response.TestStatus = connection.Connection.TestError
 	response.TestStatusCode = connection.Connection.TestSuccessful
 
-	err = json.NewEncoder(w).Encode(&response)
-
-	if err != nil {
-		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
-	}
+	utilities.WriteResponse(w, cl, response, span)
 }
 
 func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *http.Request) {
@@ -662,207 +413,96 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
 	defer span.End()
 
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
-
-	vars := mux.Vars(r)
-	connectionid := vars["connectionid"]
-
+	connectionID := mux.Vars(r)["connectionid"]
 	p := r.Context().Value(KeyAWSConnectionPatchParamsRecord{}).(data.AWSConnectionPatchWrapper)
 
-	var connection data.AWSConnection
-
-	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		helper.ReturnError(
-			cl,
-			http.StatusNotFound,
-			helper.ErrorResourceNotFound,
-			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	if strings.ToLower(connection.CredentialType) == "iam_user" {
-		if len(p.PolicyARNs) == 0 {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorInvalidPolicyARNs,
-				helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(),
-				requestid,
-				r,
-				&w,
-				span)
-			return
-		}
-	} else if strings.ToLower(connection.CredentialType) == "session_token" {
-		if connection.DefaultLeaseTTL != "" {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL,
-				helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL].Error(),
-				requestid,
-				r,
-				&w,
-				span)
-			return
-		}
-
-		if connection.MaxLeaseTTL != "" {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL,
-				helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL].Error(),
-				requestid,
-				r,
-				&w,
-				span)
-			return
-		}
-	}
-
-	err := h.vh.GetAWSSecretsEngine(&connection, ctx)
-
+	connection, err := h.getAWSConnection(connectionID, cl, requestID, r, w, span)
 	if err != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorVaultLoadFailed,
-			err,
-			requestid,
-			r,
-			&w,
-			span)
 		return
 	}
+
+	if err := h.validateAWSConnectionUpdate(&connection, &p, cl, requestID, r, w, span); err != nil {
+		return
+	}
+
+	h.vh.GetAWSSecretsEngine(&connection, ctx)
 
 	if p.Connection != nil {
-		err = utilities.CopyMatchingFields(p.Connection, &connection.Connection)
-
-		if err != nil {
-			helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		if err := utilities.CopyMatchingFields(p.Connection, &connection.Connection); err != nil {
+			h.handleError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestID, r, w, span)
 			return
 		}
 	}
 
-	err = utilities.CopyMatchingFields(p, &connection)
-
-	if err != nil {
-		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+	if err := utilities.CopyMatchingFields(p, &connection); err != nil {
+		h.handleError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestID, r, w, span)
 		return
 	}
 
 	connection.Connection.ResetTestStatus()
 
-	err = h.updateAWSConnection(&connection, ctx)
-
-	if err != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreSaveFailed,
-			err,
-			requestid,
-			r,
-			&w,
-			span)
+	if err := h.updateAWSConnection(&connection, ctx); err != nil {
+		h.handleError(cl, http.StatusInternalServerError, helper.ErrorDatastoreSaveFailed, err, requestID, r, w, span)
 		return
 	}
 
-	result = h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionid)
+	response, err := h.prepareAWSConnectionResponse(connection, cl, requestID, r, w, span)
+	if err != nil {
+		return
+	}
 
+	utilities.WriteResponse(w, cl, response, span)
+}
+
+func (h *AWSConnectionHandler) getAWSConnection(connectionID string, cl *slog.Logger, requestID string, r *http.Request, w http.ResponseWriter, span trace.Span) (data.AWSConnection, error) {
+	var connection data.AWSConnection
+	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionID)
 	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, result.Error, requestID, r, w, span)
+		return data.AWSConnection{}, result.Error
 	}
-
 	if result.RowsAffected == 0 {
-		helper.ReturnError(
-			cl,
-			http.StatusNotFound,
-			helper.ErrorResourceNotFound,
-			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
-			requestid,
-			r,
-			&w,
-			span)
-		return
+		helper.ReturnError(cl, http.StatusNotFound, helper.ErrorResourceNotFound, helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(), requestID, r, w, span)
+		return data.AWSConnection{}, fmt.Errorf("resource not found")
 	}
+	return connection, nil
+}
 
-	err = h.vh.GetAWSSecretsEngine(&connection, ctx)
-
-	if err != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorVaultLoadFailed,
-			err,
-			requestid,
-			r,
-			&w,
-			span)
-		return
+func (h *AWSConnectionHandler) validateAWSConnectionUpdate(connection *data.AWSConnection, p *data.AWSConnectionPatchWrapper, cl *slog.Logger, requestID string, r *http.Request, w http.ResponseWriter, span trace.Span) error {
+	credentialType := strings.ToLower(connection.CredentialType)
+	switch credentialType {
+	case "iam_user":
+		if len(p.PolicyARNs) == 0 {
+			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorInvalidPolicyARNs, helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(), requestID, r, w, span)
+			return fmt.Errorf("invalid policy ARNs")
+		}
+	case "session_token":
+		if connection.DefaultLeaseTTL != "" {
+			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL, helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL].Error(), requestID, r, w, span)
+			return fmt.Errorf("invalid default lease TTL")
+		}
+		if connection.MaxLeaseTTL != "" {
+			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL, helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL].Error(), requestID, r, w, span)
+			return fmt.Errorf("invalid max lease TTL")
+		}
 	}
+	return nil
+}
 
-	var oRespConn data.AWSConnectionResponseWrapper
-	err = utilities.CopyMatchingFields(connection.Connection, &oRespConn.Connection)
-
-	if err != nil {
-		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
-		return
+func (h *AWSConnectionHandler) prepareAWSConnectionResponse(connection data.AWSConnection, cl *slog.Logger, requestID string, r *http.Request, w http.ResponseWriter, span trace.Span) (data.AWSConnectionResponseWrapper, error) {
+	var response data.AWSConnectionResponseWrapper
+	if err := utilities.CopyMatchingFields(connection.Connection, &response.Connection); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestID, r, w, span)
+		return response, err
 	}
-
-	err = utilities.CopyMatchingFields(connection, &oRespConn)
-
-	if err != nil {
-		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
-		return
+	if err := utilities.CopyMatchingFields(connection, &response); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestID, r, w, span)
+		return response, err
 	}
-
-	err = json.NewEncoder(w).Encode(oRespConn)
-
-	if err != nil {
-		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
-	}
+	return response, nil
 }
 
 // DeleteAWSConnection deletes a AWSConnection from datastore
@@ -902,19 +542,8 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 	defer span.End()
-
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
 
 	vars := mux.Vars(r)
 	connectionid := vars["connectionid"]
@@ -1110,19 +739,8 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 	defer span.End()
-
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
 
 	c := r.Context().Value(KeyAWSConnectionRecord{}).(*data.AWSConnection)
 
@@ -1287,17 +905,8 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnection(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 		defer span.End()
-
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		vars := mux.Vars(r)
 		connectionid := vars["connectionid"]
@@ -1323,17 +932,8 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnection(next http.Handler)
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 		defer span.End()
-
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		c := data.NewAWSConnection(h.cfg)
 
@@ -1396,17 +996,8 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Hand
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionUpdate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 		defer span.End()
-
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		vars := mux.Vars(r)
 		connectionid := vars["connectionid"]

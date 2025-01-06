@@ -10,10 +10,8 @@ import (
 	"DemoServer_ConnectionManager/data"
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/helper"
-	"DemoServer_ConnectionManager/utilities"
 
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/otel"
 )
 
 type KeyConnectionRecord struct{}
@@ -83,19 +81,8 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 	defer span.End()
-
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
 
 	vars := r.URL.Query()
 
@@ -146,17 +133,8 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 		defer span.End()
-
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		vars := r.URL.Query()
 
@@ -229,17 +207,8 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 func (h ConnectionHandler) MiddlewareValidateConnectionLink(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 		defer span.End()
-
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		vars := mux.Vars(r)
 		connectionid := vars["connectionid"]
@@ -279,17 +248,8 @@ func (h ConnectionHandler) MiddlewareValidateConnectionLink(next http.Handler) h
 func (h ConnectionHandler) MiddlewareValidateConnectionUnlink(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 		defer span.End()
-
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		vars := mux.Vars(r)
 		connectionid := vars["connectionid"]
@@ -359,19 +319,8 @@ func (h *ConnectionHandler) LinkConnection(w http.ResponseWriter, r *http.Reques
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 	defer span.End()
-
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
 
 	var connection data.Connection
 
@@ -476,19 +425,8 @@ func (h *ConnectionHandler) UnlinkConnection(w http.ResponseWriter, r *http.Requ
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	_, span, requestid, cl := h.setupTraceAndLogger(r, w)
 	defer span.End()
-
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
 
 	var connection data.Connection
 

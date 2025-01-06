@@ -1,15 +1,25 @@
 package utilities
 
 import (
+	"DemoServer_ConnectionManager/helper"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"math"
+	"net/http"
+	"net/url"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/go-playground/validator"
+	"go.opencensus.io/trace"
+	"go.opentelemetry.io/otel"
+	"gorm.io/gorm"
 )
 
 type MultiThreadedFunc func(threadId int, opsPerThread int)
@@ -281,6 +291,122 @@ func ValidateAndWrapPayload(payload map[string]interface{}, target interface{}) 
 	err = validate.Struct(target)
 	if err != nil {
 		return errors.New("validation failed: " + err.Error())
+	}
+
+	return nil
+}
+
+// Helper function to set up tracing and logging
+func SetupTraceAndLogger(r *http.Request, rw http.ResponseWriter, tracerName string) (context.Context, trace.Span, string, *slog.Logger) {
+	tr := otel.Tracer(tracerName)
+	ctx, span := tr.Start(r.Context(), GetFunctionName())
+	traceLogger := h.l.With(
+		slog.String("trace_id", span.SpanContext().TraceID().String()),
+		slog.String("span_id", span.SpanContext().SpanID().String()),
+	)
+	requestID, cl := helper.PrepareContext(r, &rw, traceLogger)
+
+	return ctx, span, requestID, cl
+}
+
+func ParseQueryParam(vars url.Values, key string, defaultValue, maxValue int) int {
+	valueStr := vars.Get(key)
+	if valueStr != "" {
+		value, err := strconv.Atoi(valueStr)
+		if err == nil && value >= 0 {
+			return int(math.Min(float64(value), float64(maxValue)))
+		}
+	}
+	return defaultValue
+}
+
+func WriteResponse(w http.ResponseWriter, cl *slog.Logger, data interface{}, span trace.Span) {
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
+	}
+}
+
+func ValidateQueryParam(
+	param string,
+	minValue int,
+	strictGreaterThan bool,
+	cl *slog.Logger,
+	r *http.Request,
+	rw http.ResponseWriter,
+	span trace.Span,
+	requestid string,
+	helperError helper.ErrorTypeEnum) error {
+	if param == "" {
+		return nil
+	}
+
+	value, err := strconv.Atoi(param)
+	if err != nil {
+		helper.ReturnError(cl, http.StatusBadRequest, helperError, err, requestid, r, &rw, span)
+		return err
+	}
+
+	if (strictGreaterThan && value <= minValue) || (!strictGreaterThan && value < minValue) {
+		helper.ReturnError(cl, http.StatusBadRequest, helperError, fmt.Errorf("no internal error"), requestid, r, &rw, span)
+		return fmt.Errorf("invalid value for parameter")
+	}
+
+	return nil
+}
+
+func UpdateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
+
+	tr := otel.Tracer(tracerName)
+	_, span := tr.Start(ctx, GetFunctionName())
+	defer span.End()
+
+	// Begin a transaction
+	tx := db.Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	result := tx.Save(obj)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func CreateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
+
+	tr := otel.Tracer(tracerName)
+	_, span := tr.Start(ctx, GetFunctionName())
+	defer span.End()
+
+	// Begin a transaction
+	tx := db.Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	result := tx.Create(obj)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

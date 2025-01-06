@@ -4,13 +4,10 @@ import (
 	"DemoServer_ConnectionManager/configuration"
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/helper"
-	"DemoServer_ConnectionManager/utilities"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
-
-	"go.opentelemetry.io/otel"
 )
 
 // Response schema for ConnectionManager Status GET
@@ -61,19 +58,8 @@ func (eh *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	//       "$ref": "#/definitions/ErrorResponse"
 
 	// Start a trace
-	tr := otel.Tracer(eh.cfg.Server.PrefixMain)
-	ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	_, span, _, cl := h.setupTraceAndLogger(r, w, eh.cfg.Server.PrefixMain)
 	defer span.End()
-
-	// Add trace context to the logger
-	traceLogger := eh.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	_, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
 
 	var response StatusResponse
 	response.Status = "DOWN"
