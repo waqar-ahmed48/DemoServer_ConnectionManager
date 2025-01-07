@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"math"
@@ -114,7 +113,7 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
+	_, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	vars := r.URL.Query()
@@ -127,7 +126,7 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	response, err := h.buildConnectionsResponse(ctx, connections, limit, skip)
+	response, err := h.buildConnectionsResponse(connections, limit, skip)
 	if err != nil {
 		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorVaultLoadFailed, err, requestid, r, &w, span)
 		return
@@ -136,7 +135,7 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 	utilities.WriteResponse(w, cl, response, span)
 }
 
-func (h *ConnectionHandler) buildConnectionsResponse(ctx context.Context, connections []data.Connection, limit, skip int) (data.ConnectionsResponse, error) {
+func (h *ConnectionHandler) buildConnectionsResponse(connections []data.Connection, limit, skip int) (data.ConnectionsResponse, error) {
 	response := data.ConnectionsResponse{
 		Total: len(connections),
 		Skip:  skip,
@@ -162,7 +161,7 @@ func (h *ConnectionHandler) buildConnectionsResponse(ctx context.Context, connec
 func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		_, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.l, h.cfg.Server.PrefixMain)
+		_, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 		defer span.End()
 
 		vars := r.URL.Query()
@@ -185,7 +184,7 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 func (h ConnectionHandler) MiddlewareValidateConnectionLink(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		_, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, h.cfg.Server.PrefixMain)
+		_, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 		defer span.End()
 
 		if _, found := utilities.ValidateQueryStringParam("connectionid", r, cl, rw, span); !found {
@@ -204,7 +203,7 @@ func (h ConnectionHandler) MiddlewareValidateConnectionLink(next http.Handler) h
 func (h ConnectionHandler) MiddlewareValidateConnectionUnlink(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		_, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, h.cfg.Server.PrefixMain)
+		_, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 		defer span.End()
 
 		if _, found := utilities.ValidateQueryStringParam("connectionid", r, cl, rw, span); !found {
@@ -253,7 +252,7 @@ func (h *ConnectionHandler) LinkConnection(w http.ResponseWriter, r *http.Reques
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	vars := mux.Vars(r)
@@ -322,7 +321,7 @@ func (h *ConnectionHandler) UnlinkConnection(w http.ResponseWriter, r *http.Requ
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	vars := mux.Vars(r)

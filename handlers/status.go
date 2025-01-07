@@ -59,7 +59,7 @@ func (eh *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	//       "$ref": "#/definitions/ErrorResponse"
 
 	// Start a trace
-	ctx, span, _, cl := utilities.SetupTraceAndLogger(r, w, eh.l, eh.cfg.Server.PrefixMain)
+	ctx, span, _, cl := utilities.SetupTraceAndLogger(r, w, eh.l, utilities.GetFunctionName(), eh.cfg.Server.PrefixMain)
 	defer span.End()
 
 	var response StatusResponse

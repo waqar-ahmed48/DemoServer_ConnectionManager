@@ -2,10 +2,12 @@ package utilities
 
 import (
 	"DemoServer_ConnectionManager/helper"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -228,9 +230,9 @@ func ValidateAndWrapPayload(payload map[string]interface{}, target interface{}) 
 }
 
 // Helper function to set up tracing and logging
-func SetupTraceAndLogger(r *http.Request, rw http.ResponseWriter, l *slog.Logger, tracerName string) (context.Context, trace.Span, string, *slog.Logger) {
+func SetupTraceAndLogger(r *http.Request, rw http.ResponseWriter, l *slog.Logger, funcName string, tracerName string) (context.Context, trace.Span, string, *slog.Logger) {
 	tr := otel.Tracer(tracerName)
-	ctx, span := tr.Start(r.Context(), GetFunctionName())
+	ctx, span := tr.Start(r.Context(), funcName)
 	traceLogger := l.With(
 		slog.String("trace_id", span.SpanContext().TraceID().String()),
 		slog.String("span_id", span.SpanContext().SpanID().String()),
@@ -351,7 +353,7 @@ func ValidateQueryStringParam(param string, r *http.Request, cl *slog.Logger, rw
 			cl,
 			http.StatusBadRequest,
 			helper.ErrorInvalidParameter,
-			fmt.Errorf("invalid parameter value. paramter: %s", param),
+			fmt.Errorf("invalid parameter value. parameter: %s", param),
 			"",
 			r,
 			&rw,
@@ -365,6 +367,11 @@ func ValidateQueryStringParam(param string, r *http.Request, cl *slog.Logger, rw
 // Middleware for decoding and validating JSON payloads
 func DecodeAndValidate[T any](r *http.Request, cl *slog.Logger, rw http.ResponseWriter, span trace.Span) (*T, bool) {
 	var payload T
+
+	body, _ := io.ReadAll(r.Body)
+	fmt.Println(string(body))
+	r.Body = io.NopCloser(bytes.NewBuffer(body)) // Reset r.Body for further use
+
 	err := json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
 		helper.ReturnError(
