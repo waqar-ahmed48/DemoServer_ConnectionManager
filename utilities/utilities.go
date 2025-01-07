@@ -18,8 +18,8 @@ import (
 
 	"github.com/go-playground/validator"
 	"github.com/gorilla/mux"
-	"go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -59,76 +59,6 @@ func CallMultiThreadedFunc(f MultiThreadedFunc, count int, threads int) {
 	// Wait for the completion signal
 	<-done
 }
-
-/*
-func CopyMatchingFields(src, tgt interface{}) error {
-	srcVal := reflect.ValueOf(src)
-	tgtVal := reflect.ValueOf(tgt)
-
-	// Ensure tgt is a pointer and can be dereferenced
-	if tgtVal.Kind() != reflect.Ptr || tgtVal.IsNil() {
-		return errors.New("target object must be a non-nil pointer to a struct")
-	}
-
-	tgtElem := tgtVal.Elem() // Dereference the pointer
-
-	// Ensure tgtElem is a struct
-	if tgtElem.Kind() != reflect.Struct {
-		return errors.New("target object must be a pointer to a struct")
-	}
-
-	// Ensure src is a struct or a pointer to a struct
-	if srcVal.Kind() == reflect.Ptr {
-		srcVal = srcVal.Elem() // Dereference if it's a pointer
-	}
-
-	if srcVal.Kind() != reflect.Struct {
-		return errors.New("source object must be a struct or a pointer to a struct")
-	}
-
-	// Iterate through the fields of the target struct
-	for i := 0; i < tgtElem.NumField(); i++ {
-		tgtField := tgtElem.Type().Field(i)
-		tgtFieldVal := tgtElem.Field(i)
-		srcField := srcVal.FieldByName(tgtField.Name)
-
-		// Ensure srcField exists and is valid
-		if !srcField.IsValid() || !tgtFieldVal.CanSet() {
-			continue
-		}
-
-		srcFieldType := srcField.Type()
-		srcFieldName := tgtField.Name
-
-		// Skip if the field is a struct or pointer to a struct
-		if srcFieldType.Kind() == reflect.Struct ||
-			(srcFieldType.Kind() == reflect.Ptr && srcFieldType.Elem().Kind() == reflect.Struct) {
-			fmt.Printf("Skipping field %s: is a struct or pointer to a struct\n", srcFieldName)
-			continue
-		}
-
-		// Handle pointer-to-value or pointer-to-pointer cases
-		if srcField.Kind() == reflect.Ptr {
-			if !srcField.IsNil() {
-				// Dereference pointer from src and set if tgt is non-pointer
-				if tgtFieldVal.Kind() != reflect.Ptr {
-					tgtFieldVal.Set(srcField.Elem())
-				} else {
-					// Both src and tgt are pointers
-					tgtFieldVal.Set(srcField)
-				}
-			}
-		} else {
-			// Both src and tgt are non-pointers
-			if tgtFieldVal.Kind() == srcField.Kind() {
-				tgtFieldVal.Set(srcField)
-			}
-		}
-	}
-
-	return nil
-}
-*/
 
 func CopyMatchingFields(src, tgt interface{}) error {
 	srcVal := reflect.ValueOf(src)
@@ -298,10 +228,10 @@ func ValidateAndWrapPayload(payload map[string]interface{}, target interface{}) 
 }
 
 // Helper function to set up tracing and logging
-func SetupTraceAndLogger(r *http.Request, rw http.ResponseWriter, tracerName string) (context.Context, trace.Span, string, *slog.Logger) {
+func SetupTraceAndLogger(r *http.Request, rw http.ResponseWriter, l *slog.Logger, tracerName string) (context.Context, trace.Span, string, *slog.Logger) {
 	tr := otel.Tracer(tracerName)
 	ctx, span := tr.Start(r.Context(), GetFunctionName())
-	traceLogger := h.l.With(
+	traceLogger := l.With(
 		slog.String("trace_id", span.SpanContext().TraceID().String()),
 		slog.String("span_id", span.SpanContext().SpanID().String()),
 	)
@@ -414,7 +344,7 @@ func CreateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName st
 }
 
 // Generalized middleware for validating connection id
-func validateQueryStringParam(param string, r *http.Request, cl *slog.Logger, rw http.ResponseWriter, span trace.Span) (string, bool) {
+func ValidateQueryStringParam(param string, r *http.Request, cl *slog.Logger, rw http.ResponseWriter, span trace.Span) (string, bool) {
 	p := mux.Vars(r)[param]
 	if len(p) == 0 {
 		helper.ReturnError(

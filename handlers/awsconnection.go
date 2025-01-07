@@ -9,7 +9,6 @@ import (
 	"DemoServer_ConnectionManager/utilities"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -18,8 +17,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"go.opencensus.io/trace"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type KeyAWSConnectionRecord struct{}
@@ -92,7 +91,7 @@ func (h *AWSConnectionHandler) GetAWSConnections(w http.ResponseWriter, r *http.
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	vars := r.URL.Query()
@@ -161,7 +160,7 @@ func (h *AWSConnectionHandler) buildAWSConnectionsResponse(ctx context.Context, 
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionsGet(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		_, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.cfg.Server.PrefixMain)
+		_, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.l, h.cfg.Server.PrefixMain)
 		defer span.End()
 
 		vars := r.URL.Query()
@@ -218,7 +217,7 @@ func (h *AWSConnectionHandler) GetAWSConnection(w http.ResponseWriter, r *http.R
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
+	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	connectionID := mux.Vars(r)["connectionid"]
@@ -275,7 +274,7 @@ func (h *AWSConnectionHandler) GenerateCredsAWSConnection(w http.ResponseWriter,
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
+	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	connectionID := mux.Vars(r)["connectionid"]
@@ -303,7 +302,7 @@ func (h *AWSConnectionHandler) fetchAWSConnection(connectionID string) (*data.AW
 		return nil, result.Error
 	}
 	if result.RowsAffected == 0 {
-		return nil, errors.New(helper.ErrorDictionary[helper.ErrorResourceNotFound].Error())
+		return nil, helper.ErrorDictionary[helper.ErrorResourceNotFound].Error()
 	}
 	return &connection, nil
 }
@@ -344,7 +343,7 @@ func (h *AWSConnectionHandler) TestAWSConnection(w http.ResponseWriter, r *http.
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
+	ctx, span, requestID, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	connectionID := mux.Vars(r)["connectionid"]
@@ -413,18 +412,18 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	connectionID := mux.Vars(r)["connectionid"]
 	p := r.Context().Value(KeyAWSConnectionPatchParamsRecord{}).(data.AWSConnectionPatchWrapper)
 
-	connection, err := h.getAWSConnection(connectionID, cl, requestID, r, w, span)
+	connection, err := h.getAWSConnection(connectionID, cl, requestid, r, &w, span)
 	if err != nil {
 		return
 	}
 
-	if err := h.validateAWSConnectionUpdate(&connection, &p, cl, requestID, r, w, span); err != nil {
+	if err := h.validateAWSConnectionUpdate(&connection, &p, cl, requestid, r, &w, span); err != nil {
 		return
 	}
 
@@ -432,24 +431,24 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 
 	if p.Connection != nil {
 		if err := utilities.CopyMatchingFields(p.Connection, &connection.Connection); err != nil {
-			h.handleError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestID, r, w, span)
+			helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
 			return
 		}
 	}
 
 	if err := utilities.CopyMatchingFields(p, &connection); err != nil {
-		h.handleError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestID, r, w, span)
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
 		return
 	}
 
 	connection.Connection.ResetTestStatus()
 
 	if err := h.updateAWSConnection(&connection, ctx); err != nil {
-		h.handleError(cl, http.StatusInternalServerError, helper.ErrorDatastoreSaveFailed, err, requestID, r, w, span)
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreSaveFailed, err, requestid, r, &w, span)
 		return
 	}
 
-	response, err := h.prepareAWSConnectionResponse(connection, cl, requestID, r, w, span)
+	response, err := h.prepareAWSConnectionResponse(connection, cl, requestid, r, &w, span)
 	if err != nil {
 		return
 	}
@@ -457,7 +456,7 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 	utilities.WriteResponse(w, cl, response, span)
 }
 
-func (h *AWSConnectionHandler) getAWSConnection(connectionID string, cl *slog.Logger, requestID string, r *http.Request, w http.ResponseWriter, span trace.Span) (data.AWSConnection, error) {
+func (h *AWSConnectionHandler) getAWSConnection(connectionID string, cl *slog.Logger, requestID string, r *http.Request, w *http.ResponseWriter, span trace.Span) (data.AWSConnection, error) {
 	var connection data.AWSConnection
 	result := h.pd.RODB().Preload("Connection").First(&connection, "id = ?", connectionID)
 	if result.Error != nil {
@@ -475,7 +474,7 @@ func (h *AWSConnectionHandler) validateAWSConnection(c *data.AWSConnection, cl *
 	switch strings.ToLower(c.CredentialType) {
 	case "iam_user":
 		if len(c.PolicyARNs) == 0 {
-			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorInvalidPolicyARNs, helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(), requestID, r, &w, span)
+			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorInvalidPolicyARNs, helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(), requestid, r, &w, span)
 			return fmt.Errorf("invalid policy ARNs")
 		}
 
@@ -492,7 +491,7 @@ func (h *AWSConnectionHandler) validateAWSConnection(c *data.AWSConnection, cl *
 	return nil
 }
 
-func (h *AWSConnectionHandler) validateAWSConnectionUpdate(connection *data.AWSConnection, p *data.AWSConnectionPatchWrapper, cl *slog.Logger, requestID string, r *http.Request, w http.ResponseWriter, span trace.Span) error {
+func (h *AWSConnectionHandler) validateAWSConnectionUpdate(connection *data.AWSConnection, p *data.AWSConnectionPatchWrapper, cl *slog.Logger, requestID string, r *http.Request, w *http.ResponseWriter, span trace.Span) error {
 	credentialType := strings.ToLower(connection.CredentialType)
 	switch credentialType {
 	case "iam_user":
@@ -513,7 +512,7 @@ func (h *AWSConnectionHandler) validateAWSConnectionUpdate(connection *data.AWSC
 	return nil
 }
 
-func (h *AWSConnectionHandler) prepareAWSConnectionResponse(connection data.AWSConnection, cl *slog.Logger, requestID string, r *http.Request, w http.ResponseWriter, span trace.Span) (data.AWSConnectionResponseWrapper, error) {
+func (h *AWSConnectionHandler) prepareAWSConnectionResponse(connection data.AWSConnection, cl *slog.Logger, requestID string, r *http.Request, w *http.ResponseWriter, span trace.Span) (data.AWSConnectionResponseWrapper, error) {
 	var response data.AWSConnectionResponseWrapper
 	if err := utilities.CopyMatchingFields(connection.Connection, &response.Connection); err != nil {
 		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestID, r, w, span)
@@ -563,7 +562,7 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	vars := mux.Vars(r)
@@ -574,7 +573,7 @@ func (h *AWSConnectionHandler) DeleteAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
-	connection, err := h.getAWSConnection(connectionid, cl, requestid, r, w, span)
+	connection, err := h.getAWSConnection(connectionid, cl, requestid, r, &w, span)
 	if err != nil {
 		return
 	}
@@ -718,7 +717,7 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, h.cfg.Server.PrefixMain)
 	defer span.End()
 
 	c := r.Context().Value(KeyAWSConnectionRecord{}).(*data.AWSConnection)
@@ -773,7 +772,7 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnection(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.cfg.Server.PrefixMain)
+		_, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, h.cfg.Server.PrefixMain)
 		defer span.End()
 
 		if _, found := utilities.ValidateQueryStringParam("connectionid", r, cl, rw, span); !found {
@@ -788,7 +787,7 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnection(next http.Handler)
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.cfg.Server.PrefixMain)
+		ctx, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, h.cfg.Server.PrefixMain)
 		defer span.End()
 
 		payload, valid := utilities.DecodeAndValidate[data.ConnectionPostWrapper](r, cl, rw, span)
@@ -805,7 +804,7 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Hand
 func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionUpdate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.cfg.Server.PrefixMain)
+		ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.l, h.cfg.Server.PrefixMain)
 		defer span.End()
 
 		if _, found := utilities.ValidateQueryStringParam("connectionid", r, cl, rw, span); !found {
@@ -819,6 +818,8 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionUpdate(next http.Ha
 			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorInvalidJSONSchemaForParameter, err, requestid, r, &rw, span)
 			return
 		}
+
+		var p data.AWSConnectionPatchWrapper
 
 		// Validate and wrap the payload
 		err = utilities.ValidateAndWrapPayload(payload, &p)

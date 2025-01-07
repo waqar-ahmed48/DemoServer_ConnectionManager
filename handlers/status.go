@@ -4,6 +4,7 @@ import (
 	"DemoServer_ConnectionManager/configuration"
 	"DemoServer_ConnectionManager/datalayer"
 	"DemoServer_ConnectionManager/helper"
+	"DemoServer_ConnectionManager/utilities"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -58,7 +59,7 @@ func (eh *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	//       "$ref": "#/definitions/ErrorResponse"
 
 	// Start a trace
-	_, span, _, cl := h.setupTraceAndLogger(r, w, eh.cfg.Server.PrefixMain)
+	ctx, span, _, cl := utilities.SetupTraceAndLogger(r, w, eh.l, eh.cfg.Server.PrefixMain)
 	defer span.End()
 
 	var response StatusResponse
