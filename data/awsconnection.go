@@ -43,11 +43,11 @@ type AWSConnectionPostWrapper struct {
 
 	// CredentialType CredentialType for AWS Account Role
 	// required: true
-	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user" gorm:"-"`
+	CredentialType string `json:"credential_type" validate:"required,oneof=iam_user session_token" gorm:"-"`
 
 	// PolicyARNs PolicyARNs for AWS Account
 	// required: true
-	PolicyARNs []string `json:"policy_arns" validate:"required" gorm:"-"`
+	PolicyARNs []string `json:"policy_arns" gorm:"-"`
 }
 
 // AWSConnectionPatchWrapper represents AWSConnection attributes for PATCH request body schema.
@@ -258,7 +258,7 @@ func NewAWSConnection(cfg *configuration.Config) *AWSConnection {
 	c.ID = uuid.New()
 	c.Connection.ID = uuid.New()
 	c.ConnectionID = c.Connection.ID
-	c.Connection.ConnectionType = NoConnectionType
+	c.Connection.ConnectionType = AWSConnectionType
 	c.VaultPath = cfg.Vault.PathPrefix + "/aws_" + c.ID.String()
 
 	return &c

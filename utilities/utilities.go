@@ -2,12 +2,10 @@ package utilities
 
 import (
 	"DemoServer_ConnectionManager/helper"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -316,6 +314,21 @@ func UpdateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName st
 	return nil
 }
 
+func UpdateObjectWithoutTx[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
+
+	tr := otel.Tracer(tracerName)
+	_, span := tr.Start(ctx, GetFunctionName())
+	defer span.End()
+
+	result := db.Save(obj)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
 func CreateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
 
 	tr := otel.Tracer(tracerName)
@@ -345,6 +358,69 @@ func CreateObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName st
 	return nil
 }
 
+func DeleteObject[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
+
+	tr := otel.Tracer(tracerName)
+	_, span := tr.Start(ctx, GetFunctionName())
+	defer span.End()
+
+	// Begin a transaction
+	tx := db.Begin()
+
+	// Check if the transaction started successfully
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	result := tx.Delete(obj)
+
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func CreateObjectWithoutTx[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
+
+	tr := otel.Tracer(tracerName)
+	_, span := tr.Start(ctx, GetFunctionName())
+	defer span.End()
+
+	result := db.Create(obj)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+func DeleteObjectWithoutTx[T any](db *gorm.DB, obj *T, ctx context.Context, tracerName string) error {
+
+	tr := otel.Tracer(tracerName)
+	_, span := tr.Start(ctx, GetFunctionName())
+	defer span.End()
+
+	result := db.Delete(obj)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("unexpected affected row count. Expected: 1, Actual: %d", result.RowsAffected)
+	}
+
+	return nil
+}
+
 // Generalized middleware for validating connection id
 func ValidateQueryStringParam(param string, r *http.Request, cl *slog.Logger, rw http.ResponseWriter, span trace.Span) (string, bool) {
 	p := mux.Vars(r)[param]
@@ -367,10 +443,6 @@ func ValidateQueryStringParam(param string, r *http.Request, cl *slog.Logger, rw
 // Middleware for decoding and validating JSON payloads
 func DecodeAndValidate[T any](r *http.Request, cl *slog.Logger, rw http.ResponseWriter, span trace.Span) (*T, bool) {
 	var payload T
-
-	body, _ := io.ReadAll(r.Body)
-	fmt.Println(string(body))
-	r.Body = io.NopCloser(bytes.NewBuffer(body)) // Reset r.Body for further use
 
 	err := json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {

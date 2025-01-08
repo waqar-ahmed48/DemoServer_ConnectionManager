@@ -423,7 +423,17 @@ func (h *AWSConnectionHandler) UpdateAWSConnection(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if err := h.validateAWSConnectionUpdate(&connection, &p, cl, requestid, r, &w, span); err != nil {
+	if err := utilities.CopyMatchingFields(p, &connection); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		return
+	}
+
+	if err := utilities.CopyMatchingFields(p.Connection, &connection.Connection); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		return
+	}
+
+	if err := h.validateAWSConnection(&connection, cl, requestid, r, w, span); err != nil {
 		return
 	}
 
@@ -480,7 +490,7 @@ func (h *AWSConnectionHandler) validateAWSConnection(c *data.AWSConnection, cl *
 			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorInvalidPolicyARNs, helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(), requestid, r, &w, span)
 			return fmt.Errorf("invalid policy ARNs")
 		}
-
+	case "session_token":
 		if c.DefaultLeaseTTL != "" {
 			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL, helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(), requestid, r, &w, span)
 			return fmt.Errorf("invalid default lease ttl")
@@ -489,27 +499,6 @@ func (h *AWSConnectionHandler) validateAWSConnection(c *data.AWSConnection, cl *
 		if c.MaxLeaseTTL != "" {
 			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL, helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(), requestid, r, &w, span)
 			return fmt.Errorf("invalid max lease ttl")
-		}
-	}
-	return nil
-}
-
-func (h *AWSConnectionHandler) validateAWSConnectionUpdate(connection *data.AWSConnection, p *data.AWSConnectionPatchWrapper, cl *slog.Logger, requestID string, r *http.Request, w *http.ResponseWriter, span trace.Span) error {
-	credentialType := strings.ToLower(connection.CredentialType)
-	switch credentialType {
-	case "iam_user":
-		if len(p.PolicyARNs) == 0 {
-			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorInvalidPolicyARNs, helper.ErrorDictionary[helper.ErrorInvalidPolicyARNs].Error(), requestID, r, w, span)
-			return fmt.Errorf("invalid policy ARNs")
-		}
-	case "session_token":
-		if connection.DefaultLeaseTTL != "" {
-			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL, helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForDefaultLeaseTTL].Error(), requestID, r, w, span)
-			return fmt.Errorf("invalid default lease TTL")
-		}
-		if connection.MaxLeaseTTL != "" {
-			helper.ReturnError(cl, http.StatusBadRequest, helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL, helper.ErrorDictionary[helper.ErrorAWSConnectionInvalidValueForMaxLeaseTTL].Error(), requestID, r, w, span)
-			return fmt.Errorf("invalid max lease TTL")
 		}
 	}
 	return nil
@@ -607,32 +596,23 @@ func (h *AWSConnectionHandler) deleteAWSConnection(c *data.AWSConnection, ctx co
 		return tx.Error
 	}
 
-	err := h.vh.RemoveAWSSecretsEngine(c, ctx)
-	if err != nil {
+	// Delete from aws_connections
+	//if err := tx.Exec("DELETE FROM aws_connections WHERE id = ?", c.ID.String()).Error; err != nil || tx.RowsAffected != 1 {
+	if err := utilities.DeleteObjectWithoutTx(tx, c, ctx, h.cfg.Server.PrefixMain); err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Delete from aws_connections
-	if err = tx.Exec("DELETE FROM aws_connections WHERE id = ?", c.ID).Error; err != nil || tx.RowsAffected != 1 {
+	// Delete from connections
+	//if err := tx.Exec("DELETE FROM connections WHERE id = ?", c.ConnectionID.String()).Error; err != nil || tx.RowsAffected != 1 {
+	if err := utilities.DeleteObjectWithoutTx(tx, &c.Connection, ctx, h.cfg.Server.PrefixMain); err != nil {
 		tx.Rollback()
-
-		if err != nil {
-			return fmt.Errorf("failed to delete aws_connection: %w", err)
-		} else {
-			return fmt.Errorf("unexpected affected row count. %d", tx.RowsAffected)
-		}
+		return err
 	}
 
-	// Delete from connections
-	if err := tx.Exec("DELETE FROM connections WHERE id = ?", c.ConnectionID).Error; err != nil || tx.RowsAffected != 1 {
+	if err := h.vh.RemoveAWSSecretsEngine(c, ctx); err != nil {
 		tx.Rollback()
-
-		if err != nil {
-			return fmt.Errorf("failed to delete aws_connection: %w", err)
-		} else {
-			return fmt.Errorf("unexpected affected row count. %d", tx.RowsAffected)
-		}
+		return err
 	}
 
 	// Commit the transaction
@@ -657,11 +637,22 @@ func (h *AWSConnectionHandler) updateAWSConnection(c *data.AWSConnection, ctx co
 		return tx.Error
 	}
 
-	err := h.vh.UpdateAWSSecretsEngine(c, ctx)
+	if err := h.vh.RemoveAWSSecretsEngine(c, ctx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := h.vh.AddAWSSecretsEngine(c, ctx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	/*err := h.vh.UpdateAWSSecretsEngine(c, ctx)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
+	*/
 
 	result := tx.Save(&c.Connection)
 
@@ -723,8 +714,19 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 	defer span.End()
 
-	c := r.Context().Value(KeyAWSConnectionRecord{}).(*data.AWSConnection)
-	c.Connection.ConnectionType = data.AWSConnectionType
+	p := r.Context().Value(KeyAWSConnectionRecord{}).(*data.AWSConnectionPostWrapper)
+
+	c := data.NewAWSConnection(h.cfg)
+
+	if err := utilities.CopyMatchingFields(p, c); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		return
+	}
+
+	if err := utilities.CopyMatchingFields(p.Connection, &c.Connection); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorJSONDecodingFailed, err, requestid, r, &w, span)
+		return
+	}
 
 	if err := h.validateAWSConnection(c, cl, requestid, r, w, span); err != nil {
 		return
@@ -739,13 +741,13 @@ func (h *AWSConnectionHandler) AddAWSConnection(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if err := utilities.CreateObject(tx, &c.Connection, ctx, h.cfg.Server.PrefixMain); err != nil {
+	if err := utilities.CreateObjectWithoutTx(tx, &c.Connection, ctx, h.cfg.Server.PrefixMain); err != nil {
 		tx.Rollback()
 		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreSaveFailed, err, requestid, r, &w, span)
 		return
 	}
 
-	if err := utilities.CreateObject(tx, &c, ctx, h.cfg.Server.PrefixMain); err != nil {
+	if err := utilities.CreateObjectWithoutTx(tx, c, ctx, h.cfg.Server.PrefixMain); err != nil {
 		tx.Rollback()
 		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreSaveFailed, err, requestid, r, &w, span)
 		return
@@ -793,7 +795,7 @@ func (h AWSConnectionHandler) MiddlewareValidateAWSConnectionPost(next http.Hand
 		ctx, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 		defer span.End()
 
-		payload, valid := utilities.DecodeAndValidate[data.ConnectionPostWrapper](r, cl, rw, span)
+		payload, valid := utilities.DecodeAndValidate[data.AWSConnectionPostWrapper](r, cl, rw, span)
 		if !valid {
 			return
 		}
