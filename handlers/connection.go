@@ -283,7 +283,7 @@ func (h *ConnectionHandler) LinkConnection(w http.ResponseWriter, r *http.Reques
 	// The string does not exist, append it.
 	connection.Applications = append(connection.Applications, applicationid)
 
-	if err := utilities.UpdateObject(h.pd.RWDB(), &connection, ctx, h.cfg.Server.PrefixMain); err != nil {
+	if err := utilities.UpdateObject(h.pd.RWDB(), connection, ctx, h.cfg.Server.PrefixMain); err != nil {
 		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, err, requestid, r, &w, span)
 	}
 }
