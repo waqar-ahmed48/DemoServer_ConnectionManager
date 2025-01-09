@@ -214,6 +214,9 @@ const (
 
 	//ErrorJSONDecodingFailed represents error message for json decoding failed.
 	ErrorJSONDecodingFailed
+
+	//ErrorInvalidParameter represents generic invalid parameter error
+	ErrorInvalidParameter
 )
 
 // Error represent the details of error occurred.
@@ -273,6 +276,7 @@ var ErrorDictionary = map[ErrorTypeEnum]Error{
 	ErrorApplicationAlreadyLinked:                        {"ConnectionManager_Err_000035", "application id already linked to the connection", ""},
 	ErrorLinkNotFound:                                    {"ConnectionManager_Err_000036", "application id link to the connection not found", ""},
 	ErrorJSONDecodingFailed:                              {"ConnectionManager_Err_000037", "json decoding failed", ""},
+	ErrorInvalidParameter:                                {"ConnectionManager_Err_000038", "invalid parameter", ""},
 }
 
 // ErrorResponse represents information returned by Microservice endpoints in case that was an error

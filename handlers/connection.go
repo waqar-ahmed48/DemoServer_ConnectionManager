@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"encoding/json"
+	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
-	"strconv"
 
 	"DemoServer_ConnectionManager/configuration"
 	"DemoServer_ConnectionManager/data"
@@ -13,16 +13,15 @@ import (
 	"DemoServer_ConnectionManager/utilities"
 
 	"github.com/gorilla/mux"
-	"go.opentelemetry.io/otel"
 )
 
 type KeyConnectionRecord struct{}
 
 type ConnectionHandler struct {
-	l                      *slog.Logger
-	cfg                    *configuration.Config
-	pd                     *datalayer.PostgresDataSource
-	connections_list_limit int
+	l          *slog.Logger
+	cfg        *configuration.Config
+	pd         *datalayer.PostgresDataSource
+	list_limit int
 }
 
 func NewConnectionsHandler(cfg *configuration.Config, l *slog.Logger, pd *datalayer.PostgresDataSource) (*ConnectionHandler, error) {
@@ -31,9 +30,40 @@ func NewConnectionsHandler(cfg *configuration.Config, l *slog.Logger, pd *datala
 	c.cfg = cfg
 	c.l = l
 	c.pd = pd
-	c.connections_list_limit = cfg.Server.ListLimit
+	c.list_limit = cfg.Server.ListLimit
 
 	return &c, nil
+}
+
+func (h *ConnectionHandler) fetchConnections(limit, skip int) ([]data.Connection, error) {
+	var connections []data.Connection
+
+	result := h.pd.RODB().
+		Limit(limit).
+		Offset(skip).
+		Order("name").
+		Find(&connections)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return connections, nil
+}
+
+func (h *ConnectionHandler) getConnection(connectionid string) (*data.Connection, int, helper.ErrorTypeEnum, error) {
+	var connection data.Connection
+
+	result := h.pd.RODB().First(&connection, "id = ?", connectionid)
+
+	if result.Error != nil {
+		return nil, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, http.StatusNotFound, helper.ErrorResourceNotFound, fmt.Errorf("%s", helper.ErrorDictionary[helper.ErrorResourceNotFound].Error())
+	}
+
+	return &connection, http.StatusOK, helper.ErrorNone, nil
 }
 
 func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Request) {
@@ -83,143 +113,68 @@ func (h *ConnectionHandler) GetConnections(w http.ResponseWriter, r *http.Reques
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	_, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 	defer span.End()
 
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
-
 	vars := r.URL.Query()
+	limit := utilities.ParseQueryParam(vars, "limit", h.list_limit, h.cfg.DataLayer.MaxResults)
+	skip := utilities.ParseQueryParam(vars, "skip", 0, math.MaxInt32)
 
-	limit, skip := h.connections_list_limit, 0
-
-	limit_str := vars.Get("limit")
-	if limit_str != "" {
-		limit, _ = strconv.Atoi(limit_str)
-	}
-
-	skip_str := vars.Get("skip")
-	if skip_str != "" {
-		skip, _ = strconv.Atoi(skip_str)
-	}
-
-	if limit == -1 || limit > h.cfg.DataLayer.MaxResults {
-		limit = h.cfg.DataLayer.MaxResults
-	}
-
-	var response data.ConnectionsResponse
-
-	result := h.pd.RODB().Limit(limit).Offset(skip).Find(&response.Connections)
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
+	connections, err := h.fetchConnections(limit, skip)
+	if err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, err, requestid, r, &w, span)
 		return
 	}
 
-	response.Total = len(response.Connections)
-	response.Skip = skip
-	response.Limit = limit
-
-	err := json.NewEncoder(w).Encode(response)
-
+	response, err := h.buildConnectionsResponse(connections, limit, skip)
 	if err != nil {
-		helper.LogError(cl, helper.ErrorJSONEncodingFailed, err, span)
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorVaultLoadFailed, err, requestid, r, &w, span)
+		return
 	}
+
+	utilities.WriteResponse(w, cl, response, span)
+}
+
+func (h *ConnectionHandler) buildConnectionsResponse(connections []data.Connection, limit, skip int) (data.ConnectionsResponse, error) {
+	response := data.ConnectionsResponse{
+		Total: len(connections),
+		Skip:  skip,
+		Limit: limit,
+	}
+
+	if len(connections) == 0 {
+		response.Connections = []data.Connection{}
+		return response, nil
+	}
+
+	for _, conn := range connections {
+		var wrappedConn data.Connection
+		if err := utilities.CopyMatchingFields(conn, &wrappedConn); err != nil {
+			return response, err
+		}
+		response.Connections = append(response.Connections, wrappedConn)
+	}
+
+	return response, nil
 }
 
 func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		ctx, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, requestid, cl := utilities.SetupTraceAndLogger(r, rw, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 		defer span.End()
-
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
 
 		vars := r.URL.Query()
 
-		limit_str := vars.Get("limit")
-		if limit_str != "" {
-			limit, err := strconv.Atoi(limit_str)
-			if err != nil {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorInvalidValueForLimit,
-					err,
-					requestid,
-					r,
-					&rw,
-					span)
-				return
-			}
-
-			if limit <= 0 {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorLimitMustBeGtZero,
-					helper.ErrorDictionary[helper.ErrorLimitMustBeGtZero].Error(),
-					requestid,
-					r,
-					&rw,
-					span)
-				return
-			}
+		// Validate limit parameter
+		if err := utilities.ValidateQueryParam(vars.Get("limit"), 1, true, cl, r, rw, span, requestid, helper.ErrorInvalidValueForLimit); err != nil {
+			return
 		}
 
-		skip_str := vars.Get("skip")
-		if skip_str != "" {
-			skip, err := strconv.Atoi(skip_str)
-			if err != nil {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorInvalidValueForSkip,
-					err,
-					requestid,
-					r,
-					&rw, span)
-				return
-			}
-
-			if skip < 0 {
-				helper.ReturnError(
-					cl,
-					http.StatusBadRequest,
-					helper.ErrorSkipMustBeGtZero,
-					helper.ErrorDictionary[helper.ErrorSkipMustBeGtZero].Error(),
-					requestid,
-					r,
-					&rw,
-					span)
-				return
-			}
+		// Validate skip parameter
+		if err := utilities.ValidateQueryParam(vars.Get("skip"), 0, false, cl, r, rw, span, requestid, helper.ErrorInvalidValueForSkip); err != nil {
+			return
 		}
-
-		r = r.WithContext(ctx)
 
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(rw, r)
@@ -229,45 +184,14 @@ func (h ConnectionHandler) MiddlewareValidateConnectionsGet(next http.Handler) h
 func (h ConnectionHandler) MiddlewareValidateConnectionLink(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 		defer span.End()
 
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
-
-		vars := mux.Vars(r)
-		connectionid := vars["connectionid"]
-		applicationid := vars["applicationid"]
-
-		if len(connectionid) == 0 {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorConnectionIDInvalid,
-				helper.ErrorDictionary[helper.ErrorConnectionIDInvalid].Error(),
-				requestid,
-				r,
-				&rw,
-				span)
+		if _, found := utilities.ValidateQueryStringParam("connectionid", r, cl, rw, span); !found {
 			return
 		}
 
-		if len(applicationid) == 0 {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorApplicationIDInvalid,
-				helper.ErrorDictionary[helper.ErrorApplicationIDInvalid].Error(),
-				requestid,
-				r,
-				&rw,
-				span)
+		if _, found := utilities.ValidateQueryStringParam("applicationid", r, cl, rw, span); !found {
 			return
 		}
 
@@ -279,45 +203,14 @@ func (h ConnectionHandler) MiddlewareValidateConnectionLink(next http.Handler) h
 func (h ConnectionHandler) MiddlewareValidateConnectionUnlink(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 
-		tr := otel.Tracer(h.cfg.Server.PrefixMain)
-		_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+		_, span, _, cl := utilities.SetupTraceAndLogger(r, rw, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 		defer span.End()
 
-		// Add trace context to the logger
-		traceLogger := h.l.With(
-			slog.String("trace_id", span.SpanContext().TraceID().String()),
-			slog.String("span_id", span.SpanContext().SpanID().String()),
-		)
-
-		requestid, cl := helper.PrepareContext(r, &rw, traceLogger)
-
-		vars := mux.Vars(r)
-		connectionid := vars["connectionid"]
-		applicationid := vars["applicationid"]
-
-		if len(connectionid) == 0 {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorConnectionIDInvalid,
-				helper.ErrorDictionary[helper.ErrorConnectionIDInvalid].Error(),
-				requestid,
-				r,
-				&rw,
-				span)
+		if _, found := utilities.ValidateQueryStringParam("connectionid", r, cl, rw, span); !found {
 			return
 		}
 
-		if len(applicationid) == 0 {
-			helper.ReturnError(
-				cl,
-				http.StatusBadRequest,
-				helper.ErrorApplicationIDInvalid,
-				helper.ErrorDictionary[helper.ErrorApplicationIDInvalid].Error(),
-				requestid,
-				r,
-				&rw,
-				span)
+		if _, found := utilities.ValidateQueryStringParam("applicationid", r, cl, rw, span); !found {
 			return
 		}
 
@@ -359,53 +252,16 @@ func (h *ConnectionHandler) LinkConnection(w http.ResponseWriter, r *http.Reques
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 	defer span.End()
-
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
-
-	var connection data.Connection
 
 	vars := mux.Vars(r)
 	connectionid := vars["connectionid"]
 	applicationid := vars["applicationid"]
 
-	result := h.pd.RODB().First(&connection, "id = ?", connectionid)
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		helper.LogDebug(cl, helper.ErrorResourceNotFound, helper.ErrNone, span)
-
-		helper.ReturnError(
-			cl,
-			http.StatusNotFound,
-			helper.ErrorResourceNotFound,
-			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
-			requestid,
-			r,
-			&w,
-			span)
+	connection, httpStatusCode, helpError, err := h.getConnection(connectionid)
+	if err != nil {
+		helper.ReturnError(cl, httpStatusCode, helpError, err, requestid, r, &w, span)
 		return
 	}
 
@@ -427,19 +283,8 @@ func (h *ConnectionHandler) LinkConnection(w http.ResponseWriter, r *http.Reques
 	// The string does not exist, append it.
 	connection.Applications = append(connection.Applications, applicationid)
 
-	result = h.pd.RWDB().Save(&connection)
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
+	if err := utilities.UpdateObject(h.pd.RWDB(), connection, ctx, h.cfg.Server.PrefixMain); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, err, requestid, r, &w, span)
 	}
 }
 
@@ -476,51 +321,16 @@ func (h *ConnectionHandler) UnlinkConnection(w http.ResponseWriter, r *http.Requ
 	//     schema:
 	//       "$ref": "#/definitions/ErrorResponse"
 
-	tr := otel.Tracer(h.cfg.Server.PrefixMain)
-	_, span := tr.Start(r.Context(), utilities.GetFunctionName())
+	ctx, span, requestid, cl := utilities.SetupTraceAndLogger(r, w, h.l, utilities.GetFunctionName(), h.cfg.Server.PrefixMain)
 	defer span.End()
-
-	// Add trace context to the logger
-	traceLogger := h.l.With(
-		slog.String("trace_id", span.SpanContext().TraceID().String()),
-		slog.String("span_id", span.SpanContext().SpanID().String()),
-	)
-
-	requestid, cl := helper.PrepareContext(r, &w, traceLogger)
-
-	helper.LogInfo(cl, helper.InfoHandlingRequest, helper.ErrNone, span)
-
-	var connection data.Connection
 
 	vars := mux.Vars(r)
 	connectionid := vars["connectionid"]
 	applicationid := vars["applicationid"]
 
-	result := h.pd.RODB().First(&connection, "id = ?", connectionid)
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		helper.ReturnError(
-			cl,
-			http.StatusNotFound,
-			helper.ErrorResourceNotFound,
-			helper.ErrorDictionary[helper.ErrorResourceNotFound].Error(),
-			requestid,
-			r,
-			&w,
-			span)
+	connection, httpStatusCode, helpError, err := h.getConnection(connectionid)
+	if err != nil {
+		helper.ReturnError(cl, httpStatusCode, helpError, err, requestid, r, &w, span)
 		return
 	}
 
@@ -550,18 +360,7 @@ func (h *ConnectionHandler) UnlinkConnection(w http.ResponseWriter, r *http.Requ
 
 	connection.Applications = apps
 
-	result = h.pd.RWDB().Save(&connection)
-
-	if result.Error != nil {
-		helper.ReturnError(
-			cl,
-			http.StatusInternalServerError,
-			helper.ErrorDatastoreRetrievalFailed,
-			result.Error,
-			requestid,
-			r,
-			&w,
-			span)
-		return
+	if err := utilities.UpdateObject(h.pd.RWDB(), &connection, ctx, h.cfg.Server.PrefixMain); err != nil {
+		helper.ReturnError(cl, http.StatusInternalServerError, helper.ErrorDatastoreRetrievalFailed, err, requestid, r, &w, span)
 	}
 }
